@@ -1,0 +1,21 @@
+# Local settings
+.claude/settings.local.json
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Editor directories
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.key
+*.pem
+credentials.json
