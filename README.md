@@ -23,6 +23,7 @@ claude-code-extensions/
 ├── plugins/          # Full plugin bundles
 ├── hooks/            # Event handlers
 ├── skills/           # Auto-invoked capabilities
+├── agents/           # Specialized AI for specific tasks
 ├── commands/         # Slash commands
 ├── README.md         # This file
 └── CLAUDE.md         # Workflow and conventions
