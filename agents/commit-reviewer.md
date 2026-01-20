@@ -32,16 +32,85 @@ git log <range> --format=full # Full details of commits
 ```
 
 ### 2. Commit Hygiene
-Check if commits are unpushed (can still be amended):
+
+#### Step 1: Check if commits can still be fixed
 ```bash
 git status               # Shows "ahead of origin" if unpushed
 ```
+If unpushed, recommend specific fixes (amend, split, squash, reorder).
 
-- **Message quality**: Does the message explain "why", not just "what"?
-- **Atomic commits**: Does each commit do ONE thing? No "and commits" (e.g., "fix bug and add feature")
-- **Separation of concerns**: Are bugfixes, features, and refactoring in separate commits?
-- **Git story**: Does `git log --oneline` tell a coherent story?
-- **Fixable issues**: If unpushed, recommend amending, splitting, or squashing as needed
+#### Step 2: Analyze each commit individually
+
+For each commit in the range:
+```bash
+git show --stat <commit>     # What files did this commit touch?
+git show <commit>            # Full diff
+```
+
+Check:
+- **Message quality**: Explains "why", not just "what"? Subject ≤72 chars?
+- **Single purpose**: Does ONE thing? Watch for "and commits" ("fix X and add Y")
+- **Separation of concerns**: No mixing of bugfix + feature, or refactor + behavior change
+
+#### Step 3: Detect "and commits" (multi-purpose commits)
+
+Don't just look for "and" in the message—analyze the diff:
+```bash
+git show --stat <commit>     # Files from unrelated directories?
+git show --name-status <commit>  # Mix of A(dd), M(odify), D(elete), R(ename)?
+```
+
+Signs of an "and commit":
+- Touches unrelated directories (e.g., `src/auth/` AND `src/billing/`)
+- Mix of structural changes (rename/move) with behavior changes
+- Adds new feature AND fixes unrelated bug
+- Large diff with multiple logical changes that could be reviewed separately
+
+#### Step 4: Analyze the series (for multi-commit ranges)
+
+When reviewing 2+ commits, analyze their relationships:
+
+```bash
+# Which files are touched by multiple commits?
+git log <range> --name-only --pretty=format: | sort | uniq -c | sort -rn | head -20
+
+# Show commit-by-commit progression for a specific file
+git log <range> --oneline -- <file>
+
+# Detect fixup patterns: small commits after large ones
+git log <range> --format="%h %s" --shortstat
+```
+
+**Inter-commit problems to detect:**
+
+| Pattern | Problem | Fix |
+|---------|---------|-----|
+| Same file in commits N and N+1 | Likely a fixup that should be squashed | `git rebase -i`, squash into parent |
+| "Fix typo" / "Oops" / "WIP" commits | Incomplete work pushed prematurely | Squash into the commit it fixes |
+| Commit N reverts part of commit N-2 | Indicates trial-and-error left in history | Squash or reorder to hide the churn |
+| Formatting commit mixed with feature | Should be separate | Split: format first, then feature |
+| Refactoring interleaved with features | Hard to review, risky | Separate: all refactoring first |
+
+#### Step 5: Evaluate the story arc (for feature branches)
+
+Read `git log --oneline <range>` as a narrative. Good feature branches follow a pattern:
+
+```
+Ideal story arc:
+1. Preparation   - Refactoring, renaming, moving files (no behavior change)
+2. Foundation    - New types, interfaces, schemas (still no behavior)
+3. Core feature  - The main implementation
+4. Integration   - Wiring it up, updating call sites
+5. Tests         - Test coverage for the new code
+6. Docs/cleanup  - Documentation, removing dead code
+```
+
+**Story problems to detect:**
+- **No arc**: Random ordering, jumping between concerns
+- **Inverted arc**: Tests before implementation, docs before feature exists
+- **Interleaved concerns**: Refactor → feature → refactor → feature (should group)
+- **Missing setup**: Large commit does everything (should be split into prep + impl)
+- **Dangling fixups**: Small corrections that should be squashed into their parent
 
 ### 3. Security Analysis
 - **Input validation**: User input sanitized before use?
@@ -206,12 +275,42 @@ Use these checklists as reference when reviewing each area. Not every item appli
 - [ ] Reorder commits for logical flow
 - [ ] Interactive rebase to clean up history
 
-### Signs of Problems
+### Signs of Single-Commit Problems
 - "Fix typo" after a feature commit → should be squashed
 - "Add X and fix Y" → should be two commits
 - "Refactor and add feature" → separate concerns
 - Large commits touching unrelated files → split by concern
 - Commit message describes "what" code does → explain "why" instead
+
+### "And Commit" Detection (Beyond Keywords)
+Don't just grep for "and" in messages—analyze the diff:
+- [ ] Touches unrelated directories? (e.g., `src/auth/` + `src/billing/`)
+- [ ] Mixes structural changes (rename/move) with behavior changes?
+- [ ] Multiple independent logical changes in one diff?
+- [ ] Could this diff be reviewed as separate, independent changes?
+
+### Series Analysis (Multi-Commit Ranges)
+- [ ] Same file touched by adjacent commits? → likely fixups to squash
+- [ ] Small "correction" commits after large ones? → squash into parent
+- [ ] Commit undoes work from earlier commit? → reorder or squash
+- [ ] Refactoring interleaved with features? → group all refactoring first
+- [ ] Formatting mixed with logic changes? → separate commits
+
+### Story Arc (Feature Branches)
+Good branches follow a logical progression:
+1. **Preparation** - Refactoring, renames (no behavior change)
+2. **Foundation** - New types, interfaces, schemas
+3. **Core feature** - Main implementation
+4. **Integration** - Wiring up, updating call sites
+5. **Tests** - Coverage for new code
+6. **Docs/cleanup** - Documentation, dead code removal
+
+Story problems:
+- [ ] Random ordering, jumping between concerns
+- [ ] Tests before implementation exists
+- [ ] One massive commit that should be split
+- [ ] Refactor → feature → refactor → feature (should group)
+- [ ] Dangling fixups not squashed into parent
 
 ## Security Checklist
 
