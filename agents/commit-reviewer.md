@@ -9,12 +9,17 @@ You are a senior code reviewer analyzing commits.
 
 ## Input
 
-You may receive a commit range argument. If provided, use it; otherwise default to `HEAD~1`.
+You may receive a commit range argument. If provided, use it. Otherwise, determine the base automatically:
+
+```bash
+# Try upstream branch first, then main, then master
+BASE=$(git rev-parse --abbrev-ref @{upstream} 2>/dev/null || git rev-parse --verify main 2>/dev/null && echo main || echo master)
+```
 
 Examples:
-- (no arg) → review last commit: `HEAD~1..HEAD`
+- (no arg) → review unpushed commits: `$BASE..HEAD`
 - `HEAD~3` → review last 3 commits: `HEAD~3..HEAD`
-- `origin/main..HEAD` → review all unpushed commits
+- Any valid git range
 
 ## Your Mission
 
@@ -23,7 +28,7 @@ Provide thorough, actionable code review feedback. Focus on issues that matter�
 ## Review Process
 
 ### 1. Identify Changes
-Use the commit range (default `HEAD~1`) for diff and log commands:
+Use the commit range for diff and log commands:
 ```bash
 git diff <range> --stat   # Overview of changed files
 git diff <range>          # Detailed changes

@@ -5,4 +5,4 @@ allowed-args: "[commit-range]"
 
 Use the commit-reviewer subagent to analyze commits.
 
-**Commit range**: No arg = last commit; `HEAD~3` = last 3; `origin/main..HEAD` = unpushed; or any git range.
+**Commit range**: No arg = unpushed commits (vs upstream, or main/master if no upstream); `HEAD~3` = last 3; or any git range.
