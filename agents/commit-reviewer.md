@@ -56,11 +56,56 @@ git status               # Shows "ahead of origin" if unpushed
 - **Complexity**: O(n²) or worse algorithms that could be improved?
 - **Resources**: Memory leaks, unclosed connections/files?
 
-### 5. Documentation Check
-- **Docstrings**: Public functions/classes documented?
-- **README**: Does it need updating for new features?
-- **CLAUDE.md/AGENTS.md**: Architecture docs in sync with changes?
-- **Comments**: Complex logic explained? (but don't over-comment)
+### 5. Documentation Staleness Check
+
+Proactively find documentation that may be outdated by the changes.
+
+#### Step 1: Discover Documentation Files
+
+Search in priority order (stop if you find enough relevant docs):
+
+```bash
+# Priority 1: Root-level docs
+ls -1 *.md README* CHANGELOG* 2>/dev/null
+
+# Priority 2: Documentation directories
+ls -d doc/ docs/ documentation/ wiki/ 2>/dev/null
+# If found, list their contents
+
+# Priority 3: Docs correlated to changed paths
+# For each changed directory, check for local READMEs
+git diff <range> --name-only | xargs -I{} dirname {} | sort -u
+# Then check each for *.md files
+```
+
+#### Step 2: Correlate Changes to Docs
+
+Map changed code to potentially affected documentation:
+
+| Changed Path | Check These Docs |
+|--------------|------------------|
+| `src/auth/*` | `docs/auth*.md`, `docs/authentication*.md`, `src/auth/README.md` |
+| `src/api/*` | `docs/api*.md`, `API.md`, `src/api/README.md` |
+| `config.*`, `settings.*` | `docs/config*.md`, `CONFIGURATION.md`, root README (config section) |
+| `install.*`, `setup.*` | `INSTALL.md`, root README (installation section) |
+| Any new public function/class | Docstrings, relevant module docs |
+
+Use grep/glob to find docs with names matching changed directories or features.
+
+#### Step 3: Check for Staleness
+
+For each relevant doc found, skim for:
+- **References to changed code**: Function names, class names, file paths mentioned in docs
+- **Outdated examples**: Code snippets that no longer match the implementation
+- **Missing coverage**: New features/options not documented
+- **Stale screenshots**: If UI changed (note: can't verify images, just flag if UI code changed)
+
+#### What to Report
+
+Only report docs that are **likely stale based on the changes**. Don't list every doc file—focus on:
+- Docs that reference changed functions/classes by name
+- READMEs in directories where code changed
+- Config/API docs when config/API changed
 
 ### 6. Linting & Style
 - **Project linter**: Check for config files and run linter if available:
@@ -105,6 +150,9 @@ Group findings by severity. Only include sections that have findings.
 
 ### Similar Code to Update
 [Other files with same pattern that may need changes]
+
+### Stale Documentation
+[Docs that reference changed code, outdated examples, missing coverage for new features]
 
 ---
 
@@ -330,3 +378,16 @@ Use these checklists as reference when reviewing each area. Not every item appli
 - [ ] No outdated references to removed code
 - [ ] Examples tested and working
 - [ ] Screenshots current (if applicable)
+
+### Staleness Discovery (Priority Order)
+1. **Root-level docs**: README.md, CLAUDE.md, CONTRIBUTING.md, CHANGELOG.md, API.md
+2. **Doc directories**: `doc/`, `docs/`, `documentation/`, `wiki/`
+3. **Correlated docs**: `.md` files in or near changed directories
+
+### Staleness Signals
+- [ ] Docs reference renamed/removed functions or classes
+- [ ] Code examples don't match current implementation
+- [ ] Config docs missing new options
+- [ ] API docs missing new endpoints or parameters
+- [ ] README mentions removed features
+- [ ] Screenshots show old UI (if UI code changed)
