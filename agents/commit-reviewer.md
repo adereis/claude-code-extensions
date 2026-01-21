@@ -196,7 +196,15 @@ Only report docs that are **likely stale based on the changes**. Don't list ever
 - **Test quality**: Tests actually verify behavior, not just coverage?
 - **Regressions**: Could these changes break existing tests?
 
-### 8. Similar Changes Needed Elsewhere
+### 8. Private Data Exposure
+
+Glance at the diff for obviously real PII (not secrets—those are in Security). Only flag clear violations:
+- **Critical**: SSNs, credit card numbers, bank accounts
+- **High**: Real email domains (not @example.com), phone numbers, physical addresses
+
+Don't run extensive pattern matching—just notice if something looks like real personal data rather than test fixtures.
+
+### 9. Similar Changes Needed Elsewhere
 Search the codebase for patterns similar to what was changed:
 ```bash
 # Find similar patterns that might need the same fix
@@ -348,3 +356,4 @@ Use these checklists as reference when reviewing each area. Not every item appli
 - [ ] API docs missing new endpoints or parameters
 - [ ] README mentions removed features
 - [ ] Screenshots show old UI (if UI code changed)
+
