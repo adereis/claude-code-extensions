@@ -1,9 +1,8 @@
-# Claude Code Extensions - Learning Project
+# Claude Code Extensions
 
 ## Purpose
 
-Educational project for learning Claude Code's extension mechanisms.
-The depth of exploration is calibrated through conversation.
+Reusable extensions for Claude Code. New extensions are developed collaboratively, with discussion before implementation.
 
 ## Interaction Workflow
 

@@ -1,8 +1,13 @@
 # Claude Code Extensions
 
-Learning project for Claude Code-specific extension mechanisms.
+A collection of reusable extensions for Claude Code: commands, agents, skills, hooks, and plugins.
 
-## Scope
+## Related
+
+- [claude-sandbox](https://github.com/adereis/claude-sandbox) - Experimental Claude Code projects and prototypes
+- [mcp-servers](https://github.com/adereis/mcp-servers) - MCP servers (protocol layer, portable across clients)
+
+## Extension Types
 
 This repo covers Claude Code's extension points:
 
@@ -13,8 +18,6 @@ This repo covers Claude Code's extension points:
 | Skills | Capabilities Claude can auto-invoke based on context |
 | Agents | Specialized AI for specific tasks |
 | Commands | Custom slash commands |
-
-For MCP servers (the protocol layer), see [mcp-servers](https://github.com/adereis/mcp-servers).
 
 ## Structure
 
