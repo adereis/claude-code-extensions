@@ -214,6 +214,40 @@ git diff <range> --name-only  # Get changed files
 - **Consistency**: Same pattern exists elsewhere needing same update?
 - **Refactoring opportunity**: Should this be extracted to shared code?
 
+### 10. Test Isolation Violations
+
+Check for anti-patterns where test concerns leak into production code. These often appear as "quick fixes" for failing tests.
+
+**Red flags in production files** (non-test code):
+- References to `test/`, `samples/`, `fixtures/`, `mocks/` directories
+- Loading `.json`/`.yaml` files from test directories
+- Merging sample config with production config
+- `if os.getenv('TESTING')` or `if NODE_ENV === 'test'` branches
+- Fallback values pointing to test fixtures
+
+**Why it matters**: Production should never depend on test infrastructure. If tests fail, fix the test setup (mocking, fixtures), don't modify production to accommodate tests.
+
+**Root cause**: When you find this pattern, check if the commit message mentions "fix test" or "make tests pass." The real problem is usually inadequate mocking—report as a **design issue**.
+
+### 11. Design Sanity Checks
+
+Look for changes where the "fix" solves a symptom but creates an architectural problem. These often appear as confident, working solutions that pass tests but introduce technical debt.
+
+**Symptom-fixing anti-patterns**:
+- Production code loading test/sample data (fixes "missing data" by polluting production)
+- Widening interfaces with optional params used only by tests
+- Removing or loosening validation to make tests pass
+- Adding environment conditionals (`if testing:`) in production
+- Fallback chains that include test fixtures
+
+**Questions to ask**:
+- Does this solve the root cause, or just the symptom?
+- Would this design make sense if tests didn't exist?
+- Is production code now coupled to test infrastructure?
+- Could this silently break in production while tests pass?
+
+Flag changes where the implementation prioritizes "making tests pass" over "correct design."
+
 ## Output Format
 
 Group findings by severity. Only include sections that have findings.
@@ -235,6 +269,12 @@ Group findings by severity. Only include sections that have findings.
 
 ### Stale Documentation
 [Docs that reference changed code, outdated examples, missing coverage for new features]
+
+### Test Isolation Violations
+[Production code depending on test fixtures, config merging, environment conditionals]
+
+### Design Issues
+[Symptom-fixing that creates architectural problems, tests leaking into production]
 
 ---
 
@@ -357,3 +397,25 @@ Use these checklists as reference when reviewing each area. Not every item appli
 - [ ] README mentions removed features
 - [ ] Screenshots show old UI (if UI code changed)
 
+## Test Isolation & Design Checklist
+
+### Production Code Should NOT
+- [ ] Reference `test/`, `samples/`, `fixtures/`, `mocks/` directories
+- [ ] Load data files from test directories
+- [ ] Have `if testing:` or `if NODE_ENV === 'test'` branches
+- [ ] Merge test config with production config
+- [ ] Include fallbacks pointing to test fixtures
+- [ ] Contain functions that exist only to support tests
+
+### Test Code Should
+- [ ] Mock or stub dependencies (not modify production to accommodate tests)
+- [ ] Use fixtures via proper test infrastructure (pytest fixtures, beforeEach, factories)
+- [ ] Inject test config rather than relying on production to load it
+- [ ] Be self-contained—removing tests shouldn't affect production
+
+### Design Red Flags
+- [ ] Commit message mentions "fix test" but changes production code
+- [ ] Interface widened with optional params used only by tests
+- [ ] Validation removed or loosened to make tests pass
+- [ ] Production file now imports from test directory
+- [ ] Solution works but wouldn't make sense if tests didn't exist
