@@ -32,6 +32,11 @@ claude-code-extensions/
 └── CLAUDE.md         # Workflow and conventions
 ```
 
+## Installing Hooks
+
+1. Copy hook scripts to `~/.claude/hooks/`
+2. Add configuration to `~/.claude/settings.json` (see `hooks/README.md` for each hook's config)
+
 ## License
 
 MIT
