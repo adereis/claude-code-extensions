@@ -4,7 +4,7 @@ A collection of reusable extensions for Claude Code: commands, agents, skills, a
 
 ## Related
 
-- [claude-sandbox](https://github.com/adereis/claude-sandbox) - Experimental Claude Code projects and prototypes
+- [claude-sandbox](https://github.com/adereis/claude-sandbox) - Containerized environment for running Claude Code in autonomous mode
 - [mcp-servers](https://github.com/adereis/mcp-servers) - MCP servers (protocol layer, portable across clients)
 
 ## Extension Types
