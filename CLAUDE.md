@@ -56,8 +56,10 @@ Small fixes can be brief. Conceptual changes deserve thorough messages. See exis
 
 For complex commands that need specialized behavior, use a thin command that delegates to an agent:
 
-1. **Command** (`.claude/commands/foo.md`): User-facing entry point. Describes purpose, usage, and invokes the agent.
+1. **Command** (`commands/foo.md`): User-facing entry point. Describes purpose, usage, and invokes the agent.
 2. **Agent** (`agents/foo.md`): Contains the detailed instructions, checklists, and logic.
+
+Note: `.claude/commands/` is for project-specific commands (e.g., `/sync` for this repo). `commands/` at repo root is for reusable commands to distribute.
 
 This separation keeps the user-facing command concise while allowing comprehensive agent instructions.
 
@@ -78,6 +80,5 @@ When adding a new hook to `hooks/`:
 
 MCP servers are a separate concern (protocol layer). See [mcp-servers](https://github.com/adereis/mcp-servers).
 
-Plugins can *contain* MCP servers, but we keep them separate:
 - MCP = portable across clients (Claude Code, Claude Desktop, etc.)
 - Extensions here = Claude Code-specific

@@ -14,7 +14,7 @@ This repo covers Claude Code's extension points:
 | Type | Description |
 |------|-------------|
 | Hooks | Event handlers that modify Claude's behavior |
-| Skills | Capabilities Claude can auto-invoke based on context |
+| Skills | Reusable capabilities invoked via `/skill-name` |
 | Agents | Specialized AI for specific tasks |
 | Commands | Custom slash commands |
 
