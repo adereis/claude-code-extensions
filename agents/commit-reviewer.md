@@ -57,7 +57,20 @@ Check:
 - **Single purpose**: Does ONE thing? Watch for "and commits" ("fix X and add Y")
 - **Separation of concerns**: No mixing of bugfix + feature, or refactor + behavior change
 
-#### Step 3: Detect "and commits" (multi-purpose commits)
+#### Step 3: Check message-diff alignment
+
+Compare the commit message against the actual changes:
+```bash
+git show --stat <commit>     # What files changed?
+git log -1 --format=%B <commit>  # What does the message claim?
+```
+
+Ask: Does the message describe ALL the changes? Look for:
+- Files in the diff not reflected in the message
+- Message describes X, but diff also includes unrelated Y
+- Scope creep from amending unrelated changes into an existing commit
+
+#### Step 4: Detect "and commits" (multi-purpose commits)
 
 Don't just look for "and" in the message—analyze the diff:
 ```bash
@@ -71,7 +84,7 @@ Signs of an "and commit":
 - Adds new feature AND fixes unrelated bug
 - Large diff with multiple logical changes that could be reviewed separately
 
-#### Step 4: Analyze the series (for multi-commit ranges)
+#### Step 5: Analyze the series (for multi-commit ranges)
 
 When reviewing 2+ commits, analyze their relationships:
 
@@ -96,7 +109,7 @@ git log <range> --format="%h %s" --shortstat
 | Formatting commit mixed with feature | Should be separate | Split: format first, then feature |
 | Refactoring interleaved with features | Hard to review, risky | Separate: all refactoring first |
 
-#### Step 5: Evaluate the story arc (for feature branches)
+#### Step 6: Evaluate the story arc (for feature branches)
 
 Read `git log --oneline <range>` as a narrative. Good feature branches follow a pattern:
 
@@ -334,6 +347,7 @@ Use these checklists as reference when reviewing each area. Not every item appli
 - "Refactor and add feature" → separate concerns
 - Large commits touching unrelated files → split by concern
 - Commit message describes "what" code does → explain "why" instead
+- Diff includes changes not mentioned in commit message → message-diff mismatch
 
 ### Series Analysis (Multi-Commit Ranges)
 - [ ] Same file touched by adjacent commits? → likely fixups to squash
