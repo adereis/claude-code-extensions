@@ -63,6 +63,17 @@ This separation keeps the user-facing command concise while allowing comprehensi
 
 **Naming conflict**: If a skill directory exists with the same name as a command (e.g., `skills/foo/`), Claude Code may prioritize the skill. Use distinct names or rename one.
 
+### Adding Hooks
+
+When adding a new hook to `hooks/`:
+
+1. Create the hook script in `hooks/`
+2. Document it in `hooks/README.md` with:
+   - What it does
+   - The JSON configuration snippet for `settings.json`
+   - Any notable behavior or caveats
+3. Sync to `~/.claude/hooks/` for immediate use
+
 ## Relationship to MCP
 
 MCP servers are a separate concern (protocol layer). See [mcp-servers](https://github.com/adereis/mcp-servers).
