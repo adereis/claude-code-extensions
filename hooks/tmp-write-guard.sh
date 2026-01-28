@@ -50,10 +50,14 @@ if [ "$tool_name" = "Bash" ]; then
         exit 0
     fi
 
-    # Allow read-only commands
+    # Allow read-only commands (but NOT if they redirect to /tmp/)
     # Pattern: command starts with a read-only tool followed by space/flag and /tmp path
     read_only_pattern='^[[:space:]]*(ls|cat|head|tail|less|more|file|stat|wc|md5sum|sha256sum|sha1sum|xxd|hexdump|strings|readlink|test|\[)([[:space:]]|$)'
     if echo "$command" | grep -qE "$read_only_pattern"; then
+        # But block if redirecting to /tmp/ (e.g., "cat > /tmp/file" or "cat << EOF > /tmp/file")
+        if echo "$command" | grep -qE '>>?[[:space:]]*/tmp/'; then
+            deny_with_reason "Writing to /tmp is blocked (predictable names are a security risk). Use ~/tmp instead."
+        fi
         exit 0
     fi
 
