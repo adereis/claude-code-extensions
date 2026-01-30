@@ -27,7 +27,11 @@ For each extension type:
    - Identical (✓)
    - Differ (⚠ conflict)
 
-4. **For conflicts**: Show diff, ask which version to keep (or manual merge)
+4. **For conflicts**:
+   - Show diff
+   - **Critically review** additions against project goals: extensions here should be generic and lean (reusable across projects, not bloated)
+   - If bringing content from global → project, assess whether additions fit these goals; propose trimming verbose or overly-specific content
+   - Present your assessment, then ask which version to keep (or offer a trimmed alternative)
 
 5. **For missing items**: Ask which direction to copy
 
