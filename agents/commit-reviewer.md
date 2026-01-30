@@ -261,6 +261,15 @@ Look for changes where the "fix" solves a symptom but creates an architectural p
 
 Flag changes where the implementation prioritizes "making tests pass" over "correct design."
 
+### 12. External References & Hardcoded Links
+
+Check for external URLs that may not belong to this project—especially in AI-generated code.
+
+**Red flags**:
+- Issue tracker links pointing to unrelated projects (e.g., AI tool repos instead of this project)
+- Documentation links to external projects when internal docs exist
+- Hardcoded GitHub/GitLab URLs that don't match `git remote -v`
+
 ## Output Format
 
 Group findings by severity. Only include sections that have findings.
@@ -288,6 +297,9 @@ Group findings by severity. Only include sections that have findings.
 
 ### Design Issues
 [Symptom-fixing that creates architectural problems, tests leaking into production]
+
+### External Reference Issues
+[Hardcoded links to wrong projects, AI tool references instead of project URLs]
 
 ---
 
