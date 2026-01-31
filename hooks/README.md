@@ -68,3 +68,39 @@ Hard-blocks writes to `/tmp/` (security risk due to predictable filenames). Clau
   }
 }
 ```
+
+## continue-plan.sh
+
+Auto-continues multi-phase plan execution. When enabled via environment variable, Claude continues autonomously instead of stopping after each phase.
+
+**Features:**
+- Disabled by default (must set `CLAUDE_AUTO_PLAN=1`)
+- Stops after 5 restarts (prevents infinite loops)
+- Detects `ALL_PHASES_COMPLETE` marker to stop early
+- Instructs Claude to run tests, make autonomous decisions, and record them in `DECISIONS.md`
+
+**Usage:**
+
+```bash
+CLAUDE_AUTO_PLAN=1 claude
+```
+
+**Configuration:**
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/continue-plan.sh",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}
+```
