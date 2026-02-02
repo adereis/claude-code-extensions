@@ -69,6 +69,38 @@ Hard-blocks writes to `/tmp/` (security risk due to predictable filenames). Clau
 }
 ```
 
+## test-edit-guard.sh
+
+Forces structured analysis before editing test files. Addresses the problem where Claude "fixes" failing tests instead of recognizing that the code is incomplete.
+
+**Problem it solves:** When tests fail, it's tempting to modify the tests to pass. But often the tests are correct and the code is incomplete (e.g., backporting only part of a feature, missing a dependency).
+
+**Behavior:**
+- Detects test files by name patterns (`test_*`, `*_test.*`, `*.spec.*`, etc.) and directory (`test/`, `tests/`, `__tests__/`)
+- Uses `additionalContext` to inject a nudge Claude sees after the edit executes
+- Prompts Claude to verify the edit was correct and revert if the code was incomplete
+- Logs to `~/tmp/hook-debug.log` when triggered (for debugging)
+
+**Configuration:**
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/test-edit-guard.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ## continue-plan.sh
 
 Auto-continues multi-phase plan execution. When enabled via environment variable, Claude continues autonomously instead of stopping after each phase.
