@@ -52,18 +52,16 @@ Small fixes can be brief. Conceptual changes deserve thorough messages. See exis
 
 ## Extension Patterns
 
-### Command + Agent Pattern
+### Skill + Agent Pattern
 
-For complex commands that need specialized behavior, use a thin command that delegates to an agent:
+For complex skills that need specialized behavior, use a thin skill that delegates to an agent:
 
-1. **Command** (`commands/foo.md`): User-facing entry point. Describes purpose, usage, and invokes the agent.
+1. **Skill** (`skills/foo/SKILL.md`): User-facing entry point with frontmatter and brief instructions.
 2. **Agent** (`agents/foo.md`): Contains the detailed instructions, checklists, and logic.
 
-Note: `.claude/commands/` is for project-specific commands (e.g., `/sync` for this repo). `commands/` at repo root is for reusable commands to distribute.
+Use `context: fork` and `agent: <agent-name>` in the skill frontmatter to delegate execution.
 
-This separation keeps the user-facing command concise while allowing comprehensive agent instructions.
-
-**Naming conflict**: If a skill directory exists with the same name as a command (e.g., `skills/foo/`), Claude Code may prioritize the skill. Use distinct names or rename one.
+Note: `.claude/skills/` is for project-specific skills (e.g., `/sync` for this repo). `skills/` at repo root is for reusable skills to distribute.
 
 ### Adding Hooks
 

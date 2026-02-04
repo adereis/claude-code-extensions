@@ -1,3 +1,10 @@
+---
+name: teach
+description: Toggle educational mode for learning workflows
+argument-hint: "[on|off]"
+disable-model-invocation: true
+---
+
 $ARGUMENTS: on/off toggle (default: on)
 
 {{#if (eq $ARGUMENTS "off")}}
