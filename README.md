@@ -16,6 +16,7 @@ This repo covers Claude Code's extension points:
 | Hooks | Event handlers that modify Claude's behavior |
 | Skills | Reusable capabilities invoked via `/skill-name` (includes custom slash commands) |
 | Agents | Specialized AI for specific tasks |
+| Settings | Useful settings.json configurations (statusline, etc.) |
 
 ## Structure
 
@@ -24,6 +25,7 @@ claude-code-extensions/
 ├── hooks/            # Event handlers
 ├── skills/           # Slash commands and auto-invoked capabilities
 ├── agents/           # Specialized AI for specific tasks
+├── settings/         # Settings.json configurations
 ├── README.md         # This file
 └── CLAUDE.md         # Workflow and conventions
 ```
@@ -32,6 +34,11 @@ claude-code-extensions/
 
 1. Copy hook scripts to `~/.claude/hooks/`
 2. Add configuration to `~/.claude/settings.json` (see `hooks/README.md` for each hook's config)
+
+## Installing Settings
+
+1. Copy scripts to `~/.claude/settings/`
+2. Add configuration to `~/.claude/settings.json` (see `settings/README.md` for details)
 
 ## License
 
