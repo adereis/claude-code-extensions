@@ -38,7 +38,7 @@ esac
 
 # Directory patterns (test/, tests/, __tests__/, spec/)
 case "$dirname" in
-    */test/*|*/tests/*|*/__tests__/*|*/spec/*|test|tests|__tests__|spec)
+    */test/*|*/tests/*|*/__tests__/*|*/spec/*|*/test|*/tests|*/__tests__|*/spec|test|tests|__tests__|spec)
         is_test_file=true
         ;;
 esac
