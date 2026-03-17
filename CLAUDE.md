@@ -82,7 +82,17 @@ When adding a new hook to `hooks/`:
    - What it does
    - The JSON configuration snippet for `settings.json`
    - Any notable behavior or caveats
-3. Sync to `~/.claude/hooks/` for immediate use
+3. Add tests in `tests/test_<hook_name>.sh`
+4. Sync to `~/.claude/hooks/` for immediate use
+
+### Testing
+
+Run all automated tests: `./tests/run.sh`
+Run a specific suite: `./tests/run.sh tmp_write_guard`
+
+Tests use a minimal bash assertion library (`tests/test_helper.sh`). Each `test_*.sh` file pipes mock JSON into a hook and asserts on output, stderr, and exit codes.
+
+Interactive tests (`tests/INTERACTIVE.md`) cover behaviors that need a live Claude Code session (e.g., verifying a hook fires during actual tool use). Ask Claude to run them.
 
 ## Relationship to MCP
 
