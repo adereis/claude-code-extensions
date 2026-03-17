@@ -63,6 +63,16 @@ Use `context: fork` and `agent: <agent-name>` in the skill frontmatter to delega
 
 Note: `.claude/skills/` is for project-specific skills (e.g., `/sync` for this repo). `skills/` at repo root is for reusable skills to distribute.
 
+### Skill + Script Pattern
+
+For skills that wrap a standalone script, bundle the script inside the skill directory:
+
+1. **Script** (`scripts/foo.py`): Standalone tool, usable directly from CLI.
+2. **Skill copy** (`skills/foo/foo.py`): Identical copy bundled with the skill.
+3. **SKILL.md** (`skills/foo/SKILL.md`): References `~/.claude/skills/foo/foo.py` so it works globally after sync.
+
+`/sync` keeps the skill directory (including the script) in sync with `~/.claude/skills/`. The `scripts/` copy is the primary development location — update it first, then copy into the skill directory before syncing.
+
 ### Adding Hooks
 
 When adding a new hook to `hooks/`:

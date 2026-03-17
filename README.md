@@ -1,6 +1,6 @@
 # Claude Code Extensions
 
-A collection of reusable extensions for Claude Code: commands, agents, skills, and hooks.
+A collection of reusable extensions for Claude Code: agents, skills, hooks, and scripts.
 
 ## Related
 
@@ -17,6 +17,7 @@ This repo covers Claude Code's extension points:
 | Skills | Reusable capabilities invoked via `/skill-name` (includes custom slash commands) |
 | Agents | Specialized AI for specific tasks |
 | Settings | Useful settings.json configurations (statusline, etc.) |
+| Scripts | Standalone tools that complement Claude Code |
 
 ## Structure
 
@@ -26,6 +27,7 @@ claude-code-extensions/
 ├── skills/           # Slash commands and auto-invoked capabilities
 ├── agents/           # Specialized AI for specific tasks
 ├── settings/         # Settings.json configurations
+├── scripts/          # Standalone tools (session-resume, etc.)
 ├── README.md         # This file
 └── CLAUDE.md         # Workflow and conventions
 ```
