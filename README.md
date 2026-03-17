@@ -32,15 +32,16 @@ claude-code-extensions/
 └── CLAUDE.md         # Workflow and conventions
 ```
 
-## Installing Hooks
+## Installing
 
-1. Copy hook scripts to `~/.claude/hooks/`
-2. Add configuration to `~/.claude/settings.json` (see `hooks/README.md` for each hook's config)
+**Using `/sync`** (recommended): From this project directory, run `/sync` inside Claude Code. It syncs all extension types (agents, skills, hooks) to `~/.claude/`, detects conflicts, and verifies hook enablement in `settings.json`.
 
-## Installing Settings
+**Manual installation:**
 
-1. Copy scripts to `~/.claude/settings/`
-2. Add configuration to `~/.claude/settings.json` (see `settings/README.md` for details)
+- **Hooks**: Copy scripts to `~/.claude/hooks/` and add configuration to `~/.claude/settings.json` (see `hooks/README.md` for each hook's config)
+- **Skills**: Copy skill directories to `~/.claude/skills/`
+- **Agents**: Copy agent files to `~/.claude/agents/`
+- **Settings**: Copy scripts to `~/.claude/settings/` and add configuration to `~/.claude/settings.json` (see `settings/README.md`)
 
 ## License
 
