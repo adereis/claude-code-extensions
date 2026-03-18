@@ -4,7 +4,23 @@ Claude Code hooks are scripts that run at specific points during tool execution.
 
 ## git-push-guard.sh
 
-Requires explicit confirmation before any `git push` command executes. Prevents accidental pushes when Claude is running autonomously.
+**Command confirmation guard** — forces human confirmation before specific commands execute, even when Bash is pre-approved via permissions.
+
+This is useful as a safety net for autonomous or semi-autonomous sessions: you can broadly allow Bash commands for speed, while still requiring explicit approval for high-impact operations. The hook intercepts commands *after* Claude Code's own permission check, so it acts as an additional protection layer.
+
+**Default behavior:** Guards `git push` commands. Prevents accidental pushes when Claude is running autonomously.
+
+**Adapting to other commands:** The script uses parallel `PATTERNS` and `REASONS` arrays. Uncomment the built-in examples or add your own — the first matching pattern wins and its reason is shown to the user:
+
+| Guard | Pattern | Use case |
+|-------|---------|----------|
+| `git push` (default) | `\bgit\s+push\b` | Prevent unreviewed pushes |
+| `kubectl delete` | `\bkubectl\s+delete\b` | Protect cluster resources |
+| `docker rm` | `\bdocker\s+rm\b` | Prevent container removal |
+| `terraform destroy` | `\bterraform\s+destroy\b` | Protect infrastructure |
+| `rm -rf` | `\brm\s+-rf\b` | Prevent recursive deletion |
+
+Multiple guards are handled within a single script — just add more `PATTERNS+=` / `REASONS+=` pairs. Each match produces a specific reason so the user knows exactly which command triggered the confirmation.
 
 **Configuration:**
 
