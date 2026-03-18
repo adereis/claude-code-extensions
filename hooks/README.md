@@ -101,14 +101,23 @@ This differs from the command confirmation guard: instead of *asking* before pro
 
 ## test-edit-guard.sh
 
-Forces structured analysis before editing test files. Addresses the problem where Claude "fixes" failing tests instead of recognizing that the code is incomplete.
+**File edit context guard** — injects contextual guidance when specific file types are edited. Uses `additionalContext` to show a message after the edit, prompting Claude to verify the edit was appropriate.
 
-**Problem it solves:** When tests fail, it's tempting to modify the tests to pass. But often the tests are correct and the code is incomplete (e.g., backporting only part of a feature, missing a dependency).
+This is a softer intervention than the other guards: it doesn't block or ask for confirmation, it *nudges* Claude to reconsider after the fact. Useful for file types where edits are often a mistake.
+
+**Default behavior:** Guards test file edits. When tests fail, it's tempting to modify the tests to pass. But often the tests are correct and the code is incomplete (e.g., backporting only part of a feature, missing a dependency). The injected context prompts Claude to verify.
+
+**Adapting to other file types:** The script uses parallel arrays for `LABELS`, `FILE_PATTERNS` (filename regex), `DIR_PATTERNS` (directory regex), and `CONTEXT_MESSAGES`. A file matches if either its name or directory matches. First match wins.
+
+| Guard | Detects | Use case |
+|-------|---------|----------|
+| Test files (default) | `test_*`, `*_test.*`, `*.spec.*`, `tests/` | Prevent "fixing" correct tests |
+| CI/CD config | `Jenkinsfile`, `*.yml` in `.github/workflows/` | Protect pipeline definitions |
+| DB migrations | `*.migration.*` in `migrations/` | Ensure migration safety |
 
 **Behavior:**
-- Detects test files by name patterns (`test_*`, `*_test.*`, `*.spec.*`, etc.) and directory (`test/`, `tests/`, `__tests__/`)
-- Uses `additionalContext` to inject a nudge Claude sees after the edit executes
-- Prompts Claude to verify the edit was correct and revert if the code was incomplete
+- Detects files by name patterns and/or directory patterns
+- Injects a context-specific nudge Claude sees after the edit executes
 - Logs to `~/tmp/hook-debug.log` when triggered (for debugging)
 
 **Configuration:**
