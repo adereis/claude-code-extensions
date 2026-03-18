@@ -46,15 +46,29 @@ Merge the `hooks` object into your existing settings.json. If you already have `
 
 ## tmp-write-guard.sh
 
-Hard-blocks writes to `/tmp/` (security risk due to predictable filenames). Claude sees the error message and should use `~/tmp` instead.
+**Path write deny guard** — hard-blocks writes to specific paths with no user override. Uses `permissionDecision: "deny"` for unconditional blocking.
 
-**Note:** Uses `permissionDecision: "deny"` for a hard block. Despite documentation suggesting equivalence, `"block"` shows a prompt while `"deny"` prevents execution entirely.
+This differs from the command confirmation guard: instead of *asking* before proceeding, it *denies* outright. Use this for security boundaries where the answer is always "no".
 
-**Upstream issue:** https://github.com/anthropics/claude-code/issues/14085 — This hook may become unnecessary once the issue is resolved.
+**Default behavior:** Blocks writes to `/tmp/` (predictable filenames are a security risk). Claude sees the error message and should use `~/tmp` instead.
 
-**Behavior:**
-- Denies: `Write` tool to `/tmp/*`, bash commands that write to `/tmp/`
-- Allows: read-only commands (`cat`, `ls`, `head`, `tail`) and cleanup (`rm`)
+**Note:** Despite documentation suggesting equivalence, `"block"` shows a prompt while `"deny"` prevents execution entirely.
+
+**Upstream issue:** https://github.com/anthropics/claude-code/issues/14085 — The `/tmp` block may become unnecessary once resolved.
+
+**Adapting to other paths:** The script uses parallel `BLOCKED_PATHS` and `DENY_MESSAGES` arrays. Add entries to block additional paths:
+
+| Guard | Path | Use case |
+|-------|------|----------|
+| `/tmp/` (default) | `/tmp/` | Prevent insecure temp file creation |
+| `/etc/` | `/etc/` | Protect system configuration |
+| `/var/run/` | `/var/run/` | Protect runtime state |
+
+**Smart exceptions** (apply to all blocked paths):
+- Read-only commands (`cat`, `ls`, `head`, `tail`, etc.) are allowed
+- Cleanup commands (`rm`) are allowed
+- Git commands are allowed (paths may appear in commit messages)
+- Redirects from read-only commands (`cat > /path`) are still blocked
 
 **Configuration:**
 
@@ -119,7 +133,9 @@ Forces structured analysis before editing test files. Addresses the problem wher
 
 ## continue-plan.sh
 
-Auto-continues multi-phase plan execution. When enabled via environment variable, Claude continues autonomously instead of stopping after each phase.
+**Stop event handler** — auto-continues multi-phase plan execution. When enabled via environment variable, Claude continues autonomously instead of stopping after each phase.
+
+Unlike the guards above (which intercept tool calls), this hook intercepts the `Stop` event — it runs when Claude would normally stop and wait for input. It uses exit code 2 to block stopping and injects instructions via stderr.
 
 **Features:**
 - Disabled by default (must set `CLAUDE_AUTO_PLAN=1`)
