@@ -140,6 +140,49 @@ This is a softer intervention than the other guards: it doesn't block or ask for
 }
 ```
 
+## jira-mcp-subagent-guard.sh
+
+**Subagent delegation guard** — blocks specific tools from the main agent, forcing them into subagents. Keeps the main conversation context clean by isolating MCP calls that return large payloads or require multiple round-trips.
+
+This uses a different mechanism than the other guards: instead of matching commands by regex, the tool matching is handled by the `matcher` field in `settings.json`. The script itself only checks whether the caller is the main agent (block) or a subagent (allow), using the `agent_id` field in hook inputs.
+
+**Default behavior:** Guards Jira MCP calls (`mcp__atlassian__*`).
+
+**Adapting to other tools:** Point additional `matcher` entries at the same script — no code changes needed:
+
+| Guard | Matcher | Use case |
+|-------|---------|----------|
+| Jira MCP (default) | `mcp__atlassian__*` | Isolate Jira queries |
+| Slack MCP | `mcp__slack__*` | Isolate Slack messages |
+| Notion MCP | `mcp__notion__*` | Isolate Notion queries |
+| GitHub MCP | `mcp__github__*` | Isolate GitHub API calls |
+
+**Requires:** Claude Code >= 2.1.64 (`agent_id` in hook inputs).
+
+**Upstream issue:** https://github.com/anthropics/claude-code/issues/9340 — MCP tool results (e.g., `jira_get_issue`) can return 10-12k tokens of raw JSON rendered as a wall of text in the terminal. This hook forces those calls into subagents where the verbose output stays hidden. A per-tool display mode or `--quiet` flag would make this unnecessary.
+
+**Configuration:**
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__atlassian__*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/jira-mcp-subagent-guard.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+To guard multiple MCP servers, add separate matcher entries all pointing to the same script.
+
 ## continue-plan.sh
 
 **Stop event handler** — auto-continues multi-phase plan execution. When enabled via environment variable, Claude continues autonomously instead of stopping after each phase.
