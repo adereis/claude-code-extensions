@@ -505,22 +505,26 @@ def main():
     if args.skill:
         sys.exit(0)
 
-    # Selection
-    print("\033[1mSelect session number to resume (or q to quit):\033[0m ", end="")
+    # Selection — Enter defaults to the last (most recent) session
+    default = len(sessions)
+    print(f"\033[1mSelect session to resume [{default}] (q to quit):\033[0m ", end="")
     try:
         choice = input().strip()
     except (EOFError, KeyboardInterrupt):
         print()
         sys.exit(0)
 
-    if choice.lower() in ("q", "quit", ""):
+    if choice.lower() in ("q", "quit"):
         sys.exit(0)
 
-    try:
-        num = int(choice)
-    except ValueError:
-        print(f"Invalid selection: {choice}", file=sys.stderr)
-        sys.exit(1)
+    if choice == "":
+        num = default
+    else:
+        try:
+            num = int(choice)
+        except ValueError:
+            print(f"Invalid selection: {choice}", file=sys.stderr)
+            sys.exit(1)
 
     if num < 1 or num > len(sessions):
         print(f"Selection out of range: {num}", file=sys.stderr)
