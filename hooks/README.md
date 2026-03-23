@@ -157,6 +157,8 @@ This uses a different mechanism than the other guards: instead of matching comma
 | Notion MCP | `mcp__notion__*` | Isolate Notion queries |
 | GitHub MCP | `mcp__github__*` | Isolate GitHub API calls |
 
+**Pairs with CLAUDE.md:** This hook works best alongside a CLAUDE.md instruction like `"Delegate Jira MCP calls to subagents to keep the main conversation clean"`. The instruction provides guidance and rationale; the hook enforces it. In practice, the instruction alone is not always followed — but once the hook fires and blocks, the agent recognizes the pattern and self-corrects for the rest of the session. The duo is essential: guidance without enforcement is unreliable, enforcement without guidance produces confusion.
+
 **Requires:** Claude Code >= 2.1.64 (`agent_id` in hook inputs).
 
 **Upstream issue:** https://github.com/anthropics/claude-code/issues/9340 — MCP tool results (e.g., `jira_get_issue`) can return 10-12k tokens of raw JSON rendered as a wall of text in the terminal. This hook forces those calls into subagents where the verbose output stays hidden. A per-tool display mode or `--quiet` flag would make this unnecessary.
