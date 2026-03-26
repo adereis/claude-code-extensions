@@ -13,7 +13,7 @@ You may receive a commit range argument. If provided, use it. Otherwise, determi
 
 ```bash
 # Try upstream branch first, then main, then master
-BASE=$(git rev-parse --abbrev-ref @{upstream} 2>/dev/null || git rev-parse --verify main 2>/dev/null && echo main || echo master)
+BASE=$(git rev-parse --abbrev-ref @{upstream} 2>/dev/null || { git rev-parse --verify main >/dev/null 2>&1 && echo main; } || echo master)
 ```
 
 Examples:
