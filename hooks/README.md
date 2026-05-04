@@ -52,7 +52,7 @@ This differs from the command confirmation guard: instead of *asking* before pro
 
 **Default behavior:** Blocks writes to `/tmp/` (predictable filenames are a security risk). Claude sees the error message and should use `~/tmp` instead.
 
-**Note:** Despite documentation suggesting equivalence, `"block"` shows a prompt while `"deny"` prevents execution entirely.
+**Note:** `"block"` is only valid for the root-level `decision` field (shows a prompt). Inside `hookSpecificOutput.permissionDecision`, use `"deny"` (prevents execution), `"ask"` (shows prompt), or `"allow"`/`"defer"`. Using `"block"` inside `hookSpecificOutput` causes validation failure and the hook is silently ignored.
 
 **Upstream issue:** https://github.com/anthropics/claude-code/issues/14085 — The `/tmp` block may become unnecessary once resolved.
 

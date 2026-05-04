@@ -52,7 +52,7 @@ if [ -z "$agent_id" ]; then
 {
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
-    "permissionDecision": "block",
+    "permissionDecision": "deny",
     "permissionDecisionReason": "$BLOCK_REASON"
   }
 }
