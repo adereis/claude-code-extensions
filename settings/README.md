@@ -4,27 +4,31 @@ Claude Code settings configurations. Add these snippets to your `~/.claude/setti
 
 ## statusline.sh
 
-A bash-prompt-style statusline showing git status, context usage, and session cost.
+A two-row columnar statusline with dim headers and colored values. Adapts to your setup — vim mode only appears if enabled, quota shows rate-limit percentage or falls back to session cost, and memory detection works on both Linux and macOS.
 
-**Example output:**
+**Example output** (with vim mode enabled):
 ```
-areis@laptop:/home/areis/project (main*+%) [ctx: 12.3%] [$0.0542]
+mode      workspace               branch   profile   model        context    quota       memory
+[NORMAL]  ~/projects/my-app       main*+%  pro       Opus 4.6     23% used   42% used    312.5 MB
 ```
 
-**Components:**
+**Columns:**
 
-| Component | Color | Description |
-|-----------|-------|-------------|
-| `user@host` | Green | Current user and hostname |
-| `/path/to/dir` | Blue | Working directory |
-| `(branch*+%)` | Yellow | Git branch with status indicators |
-| `[ctx: X%]` | Magenta | Context window usage percentage |
-| `[$Y.YYYY]` | Cyan | Session cost in USD |
+| Column | Color | Description |
+|--------|-------|-------------|
+| mode | Bold magenta | Vim mode indicator (only when vim mode is on) |
+| workspace | Bold blue | Working directory (`~` shorthand for `$HOME`) |
+| branch | Yellow | Git branch + status indicators (`*` dirty, `+` staged, `%` untracked) |
+| profile | Cyan/Yellow | `pro` (subscription) or `vertex` (Vertex AI) |
+| model | Green | Active model display name |
+| context | Green→Yellow→Red | Context window usage, color-coded by tier |
+| quota | Green→Yellow→Red | 5-hour rate limit usage (or session `cost` as fallback) |
+| memory | Cyan | Claude Code process RSS memory |
 
-**Git indicators:**
-- `*` = uncommitted changes (dirty working tree)
-- `+` = staged changes (ready to commit)
-- `%` = untracked files
+**Color thresholds** (context and quota):
+- **Green**: < 50% used
+- **Yellow**: 50–79% used
+- **Red**: ≥ 80% used
 
 **Installation:**
 
@@ -36,32 +40,22 @@ areis@laptop:/home/areis/project (main*+%) [ctx: 12.3%] [$0.0542]
 {
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/settings/statusline.sh"
+    "command": "~/.claude/settings/statusline.sh",
+    "refreshInterval": 10
   }
 }
 ```
 
-**Inline alternative:**
+**Platform notes:**
 
-If you prefer not to use a separate script, use this one-liner directly in settings.json:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '.workspace.current_dir'); git_info=''; if git -C \"$cwd\" rev-parse --git-dir >/dev/null 2>&1; then branch=$(git -C \"$cwd\" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null || git -C \"$cwd\" --no-optional-locks rev-parse --short HEAD 2>/dev/null); dirty=$(git -C \"$cwd\" --no-optional-locks diff --quiet 2>/dev/null || echo '*'); staged=$(git -C \"$cwd\" --no-optional-locks diff --cached --quiet 2>/dev/null || echo '+'); untracked=$(git -C \"$cwd\" --no-optional-locks ls-files --others --exclude-standard 2>/dev/null | grep -q . && echo '%' || echo ''); [ -n \"$branch\" ] && git_info=$(printf '\\033[33m (%s%s%s%s)\\033[00m' \"$branch\" \"$dirty\" \"$staged\" \"$untracked\"); fi; context_used=$(echo \"$input\" | jq -r '.context_window.used_percentage // empty'); context_info=''; [ -n \"$context_used\" ] && context_info=$(printf '\\033[35m [ctx: %.1f%%]\\033[00m' \"$context_used\"); cost=$(echo \"$input\" | jq -r '.cost.total_cost_usd // empty'); cost_info=''; [ -n \"$cost\" ] && cost_info=$(printf '\\033[36m [$%.4f]\\033[00m' \"$cost\"); printf '\\033[01;32m%s@%s\\033[00m:\\033[01;34m%s\\033[00m%s%s%s' \"$(whoami)\" \"$(hostname -s)\" \"$cwd\" \"$git_info\" \"$context_info\" \"$cost_info\""
-  }
-}
-```
-
-**Why these metrics?**
-
-- **Context usage**: Helps you know when to start a fresh session before hitting limits
-- **Session cost**: Awareness of spend, especially useful with expensive models like Opus
-- **Git status**: At-a-glance repo state without running `git status`
+- **Linux**: Memory detection reads `/proc/<pid>/status` (VmRSS)
+- **macOS**: Memory detection uses `ps -o rss=`
+- Requires `jq` and `git` in `$PATH`
 
 **Customization:**
 
-The script uses ANSI color codes. To change colors, modify the `\033[XXm` sequences:
-- `32` = green, `33` = yellow, `34` = blue, `35` = magenta, `36` = cyan
-- `01;XX` = bold variant
+The script uses ANSI escape codes for colors. To change them, modify the `\033[XXm` sequences:
+- `31` = red, `32` = green, `33` = yellow, `34` = blue, `35` = magenta, `36` = cyan
+- `01;XX` = bold, `2m` = dim (used for headers)
+
+To hide a column, comment out or remove its `col` call near the end of the script.
