@@ -534,14 +534,17 @@ def main():
     session_id = selected["sessionId"]
     project_path = selected.get("projectPath", "")
 
-    # Verify project directory exists
+    # Handle stale project path (e.g., directory was renamed)
     if project_path and not os.path.isdir(project_path):
         print(
-            f"\nProject directory no longer exists: {project_path}",
+            f"\n  \033[33mNote: recorded project path no longer exists: {shorten_path(project_path)}\033[0m",
             file=sys.stderr,
         )
-        print("Cannot resume this session.", file=sys.stderr)
-        sys.exit(1)
+        print(
+            f"  \033[33mResuming from current directory instead: {shorten_path(os.getcwd())}\033[0m",
+            file=sys.stderr,
+        )
+        project_path = os.getcwd()
 
     # Show command and confirm
     cmd = f"claude --resume {session_id}"
