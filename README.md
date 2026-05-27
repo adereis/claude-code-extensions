@@ -27,7 +27,7 @@ claude-code-extensions/
 ├── skills/           # Slash commands and auto-invoked capabilities
 ├── agents/           # Specialized AI for specific tasks
 ├── settings/         # Settings.json configurations
-├── scripts/          # Standalone tools (session-resume, etc.)
+├── scripts/          # Standalone tools (memory sync, session-resume, etc.)
 ├── README.md         # This file
 └── CLAUDE.md         # Workflow and conventions
 ```
@@ -42,6 +42,7 @@ claude-code-extensions/
 - **Skills**: Copy skill directories to `~/.claude/skills/`
 - **Agents**: Copy agent files to `~/.claude/agents/`
 - **Settings**: Copy scripts to `~/.claude/settings/` and add configuration to `~/.claude/settings.json` (see `settings/README.md`)
+- **Scripts**: Run directly or copy to a directory in your `$PATH` (see `scripts/README.md`)
 
 ## License
 

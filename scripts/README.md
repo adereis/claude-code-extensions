@@ -1,0 +1,315 @@
+# Scripts
+
+Standalone tools that extend Claude Code. Copy individual scripts to `~/.claude/scripts/` or run them directly from this directory.
+
+## session-resume.py
+
+Smart session resume with enriched history. See the [session-resume skill](../skills/session-resume/) for usage details.
+
+## claude-memory — Memory Portability
+
+A set of scripts for exporting, importing, and diffing Claude Code memories across machines. Claude Code memories are machine-local by design — these scripts make them portable.
+
+### The Problem
+
+Claude Code stores per-project memories at:
+
+```
+~/.claude/projects/<encoded-path>/memory/
+```
+
+Where `<encoded-path>` is the project's absolute filesystem path with every `/` replaced by `-`:
+
+```
+/home/alice/projects/foo  →  -home-alice-projects-foo
+/home/bob/projects/foo    →  -home-bob-projects-foo
+```
+
+Different username, different home directory, different machine — different encoded path. Memories accumulated on one machine are invisible on another, even for the same project.
+
+### The Solution
+
+Three scripts that transform between machine-specific encoded paths and portable project slugs:
+
+```
+Disk (machine-specific)              Portable (machine-agnostic)
+~/.claude/projects/                  ~/.claude/memory-sync/
+  -home-alice-projects-foo/            foo/
+    memory/                              memory/
+      MEMORY.md          ←export→          MEMORY.md
+      user_role.md       ←import→          user_role.md
+  -home-alice/                         _global/
+    memory/                              memory/
+      feedback.md        ←export→          feedback.md
+```
+
+The portable directory can be synced between machines using any method: git, rsync, Syncthing, Dropbox, a USB stick — whatever works for your setup.
+
+### claude-memory-export.sh
+
+Exports memories from your local Claude Code data to the portable directory. Scans git repos under your projects directory, finds matching Claude memory directories, and copies new/changed files.
+
+```bash
+# Export all project memories
+./scripts/claude-memory-export.sh
+
+# Export with custom paths
+./scripts/claude-memory-export.sh --dir ~/sync/claude-memories --projects-dir ~/code
+
+# Skip work-specific projects
+./scripts/claude-memory-export.sh --skip work/ --skip scratch/
+```
+
+**Output** (tab-separated):
+
+| Status | Meaning |
+|--------|---------|
+| `NEW` | New file copied to portable directory |
+| `COLLECTED` | Updated file copied (content changed since last export) |
+| `SKIP` | File unchanged, skipped |
+
+### claude-memory-import.sh
+
+Imports memories from the portable directory to your local Claude Code data. Computes machine-specific encoded paths from `$HOME` and deploys each file.
+
+```bash
+# Import all memories
+./scripts/claude-memory-import.sh
+
+# Import from custom portable directory
+./scripts/claude-memory-import.sh --dir ~/sync/claude-memories
+
+# Skip projects you don't have locally
+./scripts/claude-memory-import.sh --skip proprietary-work/
+```
+
+**Output** (tab-separated):
+
+| Status | Meaning |
+|--------|---------|
+| `NEW` | New file deployed to Claude data directory |
+| `DEPLOYED` | Updated file deployed (portable version was newer) |
+| `SKIP` | File unchanged, skipped |
+
+### claude-memory-status.sh
+
+Shows sync status between your local memories and the portable directory. Two-way comparison: checks portable files against disk, and discovers local-only memories not yet exported.
+
+```bash
+# Show what's different
+./scripts/claude-memory-status.sh
+
+# Filter output to only differences
+./scripts/claude-memory-status.sh | grep -v '^OK'
+```
+
+**Output** (tab-separated):
+
+| Status | Meaning |
+|--------|---------|
+| `OK` | In sync |
+| `DIFFERS` | Content differs between disk and portable |
+| `NEW_LOCAL` | Exists on disk only (not yet exported) |
+| `DELETED_LOCAL` | In portable directory but missing from disk |
+
+**Exit codes:** 0 = in sync, 2 = differences found.
+
+### Configuration
+
+All three scripts accept the same flags and environment variables:
+
+| Flag | Env Var | Default | Description |
+|------|---------|---------|-------------|
+| `--dir` | `CLAUDE_MEMORY_DIR` | `~/.claude/memory-sync` | Portable directory |
+| `--projects-dir` | `CLAUDE_PROJECTS_DIR` | `~/projects` | Base projects directory |
+| `--claude-dir` | `CLAUDE_DIR` | `~/.claude` | Claude Code data directory |
+| `--skip` | — | — | Skip projects matching prefix (repeatable) |
+
+CLI flags take precedence over environment variables.
+
+### Typical Workflows
+
+**Git-based sync** (recommended for versioned backup):
+
+```bash
+# First machine: export and push
+cd ~/.claude/memory-sync  # or wherever --dir points
+git init  # one-time setup
+../path/to/claude-memory-export.sh
+git add -A && git commit -m "export memories"
+git push
+
+# Second machine: pull and import
+cd ~/.claude/memory-sync
+git pull
+../path/to/claude-memory-import.sh
+```
+
+**Rsync** (direct machine-to-machine):
+
+```bash
+# Export locally, rsync to remote
+./claude-memory-export.sh
+rsync -av ~/.claude/memory-sync/ remote:~/.claude/memory-sync/
+
+# On remote: import
+./claude-memory-import.sh
+```
+
+**Periodic sync** (check before sessions):
+
+```bash
+# Quick status check
+./claude-memory-status.sh | grep -v '^OK'
+# If differences found, export or import as needed
+```
+
+### Special Cases
+
+**Global memories** — memories stored at `~/.claude/projects/<home-encoded>/memory/` (the "global" project scope) are mapped to the `_global/` slug in the portable directory. These are user-level memories not tied to any specific project.
+
+**Nested projects** — projects like `~/projects/org/sub-project` produce the slug `org/sub-project`, preserving the directory hierarchy in the portable directory. Project discovery scans up to 4 levels deep under `--projects-dir` (e.g., `~/projects/org/team/sub-project` works, but deeper nesting won't be found).
+
+**Skip prefixes** — use `--skip` to exclude projects by prefix. This is useful when some project memories contain context that shouldn't leave a particular machine (e.g., work-specific projects on a personal machine):
+
+```bash
+./claude-memory-import.sh --skip work/ --skip client-a/
+```
+
+---
+
+## Reference: Claude Code Memory Layout
+
+This section documents how Claude Code organizes data on disk. Understanding this layout is useful for building tools that interact with Claude Code's data, beyond what these scripts cover.
+
+### Directory Structure
+
+```
+~/.claude/
+├── settings.json                   # global settings, hooks, permissions
+├── sessions/                       # session index
+│   └── <numeric-id>.json           # pid, sessionId, cwd, startedAt
+└── projects/
+    └── <encoded-path>/
+        ├── <uuid>.jsonl             # session transcripts
+        ├── <uuid>/                  # session working data
+        └── memory/
+            ├── MEMORY.md            # memory index (loaded into context)
+            └── *.md                 # individual memory files
+```
+
+### Path Encoding
+
+The encoded path is computed as:
+
+```bash
+echo "$absolute_path" | tr '/' '-'
+# /home/alice/projects/foo → -home-alice-projects-foo
+```
+
+**The encoding is lossy in reverse.** The `-` character is both the separator and a valid character in directory names. Given `-home-alice-projects-my-app`, you can't tell if the project is `my-app` or `my/app` without checking the actual filesystem. This is why the export script discovers projects by scanning git repos on disk (forward direction) rather than trying to decode existing Claude paths (reverse direction).
+
+### Memory File Format
+
+Individual memory files use YAML frontmatter:
+
+```markdown
+---
+name: short-kebab-slug
+description: One-line summary used for relevance matching
+metadata:
+  type: user|feedback|project|reference
+---
+
+Memory content in markdown. Can reference other memories with [[name]].
+```
+
+`MEMORY.md` is a plain index file (no frontmatter) loaded into every conversation. It contains one-line pointers to individual memory files.
+
+### Session Transcripts
+
+`.jsonl` files contain one JSON object per line. Most lines include a `cwd` field with the absolute project path. Other path references appear in tool call content (file paths, command output) — these are conversation history, not structural data.
+
+The `sessions/<id>.json` index links sessions to projects via the `cwd` field, but most sessions are found through the project directory's `.jsonl` files directly.
+
+---
+
+## Advanced: Three-Way Sync with State Tracking
+
+The `claude-memory-status` script performs a **two-way comparison**: it checks whether disk and portable directory contents match, but when they differ, it can only report `DIFFERS` — it can't tell you *which side changed*.
+
+This section explains how to extend the scripts to a **three-way comparison** that can distinguish "updated remotely" from "edited locally" and detect true conflicts. This is provided as a reference for building more sophisticated sync tools on top of these scripts.
+
+### The Limitation of Two-Way Comparison
+
+With two-way comparison, when a file differs between disk and portable:
+
+```
+Disk: sha256=aaa...    Portable: sha256=bbb...
+→ DIFFERS (but who changed?)
+```
+
+You don't know whether to import (overwrite disk) or export (overwrite portable). The user must inspect the diff and decide manually.
+
+### The State-Tracking Approach
+
+The idea: after each successful import, record the SHA-256 checksum of every deployed file in a **state file** on the local machine. This creates a third reference point — "what was the content the last time we synced?"
+
+```
+State file (~/.claude/memory-sync-state.json):
+{
+  "foo/memory/MEMORY.md": "ccc...",
+  "foo/memory/user_role.md": "ddd..."
+}
+```
+
+With three data points — disk checksum, state checksum (last-synced), and portable checksum — you can distinguish every case:
+
+| Disk | State | Portable | Diagnosis |
+|------|-------|----------|-----------|
+| A | A | A | `OK` — all three match |
+| A | A | B | `REMOTE_UPDATED` — portable changed since last sync, safe to import |
+| B | A | A | `LOCAL_EDIT` — disk changed since last sync, safe to export |
+| B | A | C | `CONFLICT` — both sides changed, needs manual resolution |
+| — | A | A | `DELETED_LOCAL` — file removed from disk since last sync |
+| A | A | — | `DELETED_REMOTE` — file removed from portable since last sync |
+| A | — | — | `NEW_LOCAL` — new file on disk, never synced |
+| — | — | A | `NEW_REMOTE` — new file in portable, never synced |
+
+### Implementing State Tracking
+
+To add state tracking to the import script:
+
+1. **After deploying each file**, record `slug/memory/filename → sha256` in a JSON state file.
+2. **In the status script**, load the state file and perform three-way comparison instead of two-way.
+3. **The state file is machine-local** — it lives on each machine and is never synced. It represents "what this machine last received."
+
+A minimal state file implementation:
+
+```bash
+STATE_FILE="${CLAUDE_DIR}/memory-sync-state.json"
+
+# Record after deploy (append to a temp file, merge at end)
+record_state() {
+    local key="$1" sha="$2"
+    # Use jq to merge into existing state
+    jq --arg k "$key" --arg v "$sha" '.[$k] = $v' "$STATE_FILE" > "$STATE_FILE.tmp"
+    mv "$STATE_FILE.tmp" "$STATE_FILE"
+}
+
+# Read during status
+read_state() {
+    local key="$1"
+    jq -r --arg k "$key" '.[$k] // ""' "$STATE_FILE"
+}
+```
+
+### Trade-offs
+
+Three-way sync adds complexity:
+
+- **State file maintenance**: must be updated atomically on every import
+- **State corruption**: if the state file is lost or corrupted, all files show as conflicts until re-synced
+- **Recovery**: a "reset state" command that re-derives state from current disk+portable is needed for robustness
+
+The two-way approach in these scripts is intentionally simple. For most users syncing memories across 2–3 machines, manually resolving the occasional `DIFFERS` is faster than maintaining state-tracking infrastructure. The three-way approach becomes worthwhile when you have many machines, frequent edits, or want fully automated sync.

@@ -68,6 +68,17 @@ run_hook() {
     rm -f "$_stderr_file"
 }
 
+# Run a script with arguments, capture stdout, stderr, and exit code
+run_script() {
+    local script="$1"
+    shift
+    _stderr_file=$(mktemp)
+    _stdout=$("$script" "$@" 2>"$_stderr_file")
+    _exit_code=$?
+    _stderr=$(cat "$_stderr_file")
+    rm -f "$_stderr_file"
+}
+
 # Print summary and return appropriate exit code
 test_summary() {
     local file_name="${1:-tests}"
