@@ -52,6 +52,8 @@ _proc_rss_kb() {
 }
 
 # ── Extract all fields in one jq call ────────────────────────────────
+# Each value on its own line — avoids bash IFS tab-stripping bug where
+# leading/consecutive tabs are silently dropped, shifting all fields.
 
 {
   read -r vim_mode
@@ -83,7 +85,7 @@ if [ -n "$cwd" ] && git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
   git -C "$cwd" --no-optional-locks diff --quiet 2>/dev/null || d='*'
   git -C "$cwd" --no-optional-locks diff --cached --quiet 2>/dev/null || s='+'
   git -C "$cwd" --no-optional-locks ls-files --others --exclude-standard 2>/dev/null \
-    | head -1 | grep -q . && u='%' || true
+    | head -1 | grep -q . && u='?' || true
   git_val="${branch}${d}${s}${u}"
 fi
 

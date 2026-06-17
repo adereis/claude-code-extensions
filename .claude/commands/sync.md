@@ -14,6 +14,7 @@ Sync extensions between this project and the global ~/.claude/ directory.
 | Agents | `agents/` | `~/.claude/agents/` |
 | Skills | `skills/` | `~/.claude/skills/` |
 | Hooks | `hooks/` | `~/.claude/hooks/` |
+| Settings | `settings/` | `~/.claude/` (flat, e.g. `statusline.sh`) |
 
 ## Task
 
@@ -41,7 +42,8 @@ For each extension type:
 - Only sync from project root directories (`commands/`, `agents/`, `skills/`, `hooks/`), not `.claude/commands/`
 - Skills are directories - compare all files within each skill
 - Hooks: only sync executable scripts (e.g., `.sh`), not README.md
-- After syncing, remind user to commit in git and yadm as appropriate
+- Settings: only sync executable scripts (e.g., `.sh`), not README.md. Target is `~/.claude/` directly (flat), not a subdirectory
+- After syncing, remind user to commit changes in git
 
 ## Hook Enablement Check
 
@@ -53,3 +55,14 @@ After syncing hooks, verify they're enabled in `~/.claude/settings.json`:
    - ✓ Enabled (appears in settings.json)
    - ⚠ Not enabled (file exists but not configured)
 4. For hooks not enabled: ask user if they want you to add the configuration to settings.json (use `hooks/README.md` as reference for the correct snippet)
+
+## Settings Enablement Check
+
+After syncing settings, verify they're configured in `~/.claude/settings.json`:
+
+1. Read `~/.claude/settings.json`
+2. For each settings script synced to `~/.claude/`, check if it's referenced in the relevant config (e.g., `statusline.sh` should appear in the `statusLine` block)
+3. Report status:
+   - ✓ Configured (referenced in settings.json)
+   - ⚠ Not configured (file exists but not wired up)
+4. For settings not configured: ask user if they want you to add the configuration (use `settings/README.md` as reference for the correct snippet)

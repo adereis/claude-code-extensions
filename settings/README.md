@@ -32,15 +32,15 @@ mode      workspace               branch   profile   model        context    quo
 
 **Installation:**
 
-1. Copy `statusline.sh` to `~/.claude/settings/`
-2. Make it executable: `chmod +x ~/.claude/settings/statusline.sh`
+1. Copy `statusline.sh` to `~/.claude/` (or use `/sync`)
+2. Make it executable: `chmod +x ~/.claude/statusline.sh`
 3. Add to `~/.claude/settings.json`:
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/settings/statusline.sh",
+    "command": "~/.claude/statusline.sh",
     "refreshInterval": 10
   }
 }
