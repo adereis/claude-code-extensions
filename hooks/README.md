@@ -99,6 +99,66 @@ This differs from the command confirmation guard: instead of *asking* before pro
 }
 ```
 
+## tmp-home-allow.sh
+
+**Path write allow guard** — the *allow* half of the `~/tmp` policy. Returns `permissionDecision: "allow"` whenever an operation targets `~/tmp`, so those writes and commands skip the permission prompt entirely.
+
+Pairs with `tmp-write-guard.sh`: together they enforce `~/tmp` = safe (auto-approved), `/tmp` = blocked. Prefix-based permission rules (e.g. `Bash(...)`) can't reliably cover every shape where `~/tmp` appears — a redirect target, a mid-pipeline argument, an env assignment — so this hook inspects the resolved path / full command instead.
+
+**Covered tools:**
+- `Write`/`Edit` — resolves `file_path` with `realpath` and allows if it falls under `~/tmp/`
+- `Bash` — allows if `~/tmp/` or `$HOME/tmp/` appears anywhere in the command
+
+On no match it exits silently, letting later hooks and the default permission system decide.
+
+**Ordering (important):** Must be listed **before** `tmp-write-guard.sh` in each matcher, so the `allow` decision is registered before the deny guard runs. Appending it *after* the guard defeats the pairing.
+
+**Configuration** (shown with `tmp-write-guard.sh` in the correct order):
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/tmp-home-allow.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/tmp-write-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/tmp-home-allow.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/tmp-write-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/tmp-home-allow.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ## test-edit-guard.sh
 
 **File edit context guard** — injects contextual guidance when specific file types are edited. Uses `additionalContext` to show a message after the edit, prompting Claude to verify the edit was appropriate.
