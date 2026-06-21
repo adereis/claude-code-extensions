@@ -13,7 +13,7 @@
 # Usage: Configure in ~/.claude/settings.json:
 #   "statusLine": {
 #     "type": "command",
-#     "command": "~/.claude/settings/statusline.sh",
+#     "command": "~/.claude/statusline.sh",
 #     "refreshInterval": 10
 #   }
 
