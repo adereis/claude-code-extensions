@@ -34,7 +34,7 @@ claude-code-extensions/
 
 ## Installing
 
-**Using `/sync`** (recommended): From this project directory, run `/sync` inside Claude Code. It syncs all extension types (agents, skills, hooks) to `~/.claude/`, detects conflicts, and verifies hook enablement in `settings.json`.
+**Using `/sync`** (recommended): From this project directory, run `/sync` inside Claude Code. It syncs all extension types (commands, agents, skills, hooks, settings) to `~/.claude/`, detects conflicts, and verifies hook enablement in `settings.json`.
 
 **Manual installation:**
 

@@ -14,7 +14,7 @@ Sync extensions between this project and the global ~/.claude/ directory.
 | Agents | `agents/` | `~/.claude/agents/` |
 | Skills | `skills/` | `~/.claude/skills/` |
 | Hooks | `hooks/` | `~/.claude/hooks/` |
-| Settings | `settings/` | `~/.claude/` (flat, e.g. `statusline.sh`) |
+| Settings | `settings/*.sh` | `~/.claude/` (flat, e.g. `statusline.sh`) |
 
 ## Task
 
@@ -39,10 +39,10 @@ For each extension type:
 ## Important
 
 - This command (`sync.md`) lives only in `.claude/commands/` - do NOT sync it
-- Only sync from project root directories (`commands/`, `agents/`, `skills/`, `hooks/`), not `.claude/commands/`
+- Only sync from project root directories (`commands/`, `agents/`, `skills/`, `hooks/`, `settings/`), not `.claude/commands/`
 - Skills are directories - compare all files within each skill
 - Hooks: only sync executable scripts (e.g., `.sh`), not README.md
-- Settings: only sync executable scripts (e.g., `.sh`), not README.md. Target is `~/.claude/` directly (flat), not a subdirectory
+- Settings: only sync executable scripts (e.g., `.sh`), not README.md. Target is the `~/.claude/` root directly (flat), not a `~/.claude/settings/` subdirectory
 - After syncing, remind user to commit changes in git
 
 ## Hook Enablement Check
