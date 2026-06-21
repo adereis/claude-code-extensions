@@ -4,25 +4,26 @@ Claude Code settings configurations. Add these snippets to your `~/.claude/setti
 
 ## statusline.sh
 
-A two-row columnar statusline with dim headers and colored values. Adapts to your setup — vim mode only appears if enabled, quota shows rate-limit percentage or falls back to session cost, and memory detection works on both Linux and macOS.
+A two-row columnar statusline with dim headers and colored values. Adapts to your setup — vim mode only appears if enabled, quota shows the 5-hour rate-limit percentage (subscription only), cost shows the estimated session cost, and memory detection works on both Linux and macOS.
 
 **Example output** (with vim mode enabled):
 ```
-mode      workspace               branch   profile   model        context    quota       memory
-[NORMAL]  ~/projects/my-app       main*+%  pro       Opus 4.6     23% used   42% used    312.5 MB
+mode   workspace               branch   profile   model        context    quota      cost      memory
+[NOR]  ~/projects/my-app       main*+%  pro       Opus 4.6     23% used   42% used   $1.2345   312.5 MB
 ```
 
 **Columns:**
 
 | Column | Color | Description |
 |--------|-------|-------------|
-| mode | Bold magenta | Vim mode indicator (only when vim mode is on) |
+| mode | Bold magenta | Vim mode indicator, abbreviated to 3 letters (`[NOR]`/`[INS]`), only when vim mode is on |
 | workspace | Bold blue | Working directory (`~` shorthand for `$HOME`) |
 | branch | Yellow | Git branch + status indicators (`*` dirty, `+` staged, `%` untracked) |
 | profile | Cyan/Yellow | `pro` (subscription) or `vertex` (Vertex AI) |
 | model | Green | Active model display name |
 | context | Green→Yellow→Red | Context window usage, color-coded by tier |
-| quota | Green→Yellow→Red | 5-hour rate limit usage (or session `cost` as fallback) |
+| quota | Green→Yellow→Red | 5-hour rate limit usage (subscription only — absent on API/Vertex) |
+| cost | Cyan | Estimated session cost in USD, computed client-side (all backends) |
 | memory | Cyan | Claude Code process RSS memory |
 
 **Color thresholds** (context and quota):

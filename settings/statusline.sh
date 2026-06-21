@@ -110,9 +110,9 @@ if [ -n "$ctx_pct" ]; then
   ctx_val=$(printf '%.0f%% used' "$ctx_pct")
 fi
 
-# ── Quota (rate limits) or cost fallback ─────────────────────────────
+# ── Quota — 5-hour rate limit (subscription only) ────────────────────
 
-quota_val="" quota_hdr="quota" quota_clr="\033[32m"
+quota_val="" quota_clr="\033[32m"
 if [ -n "$q" ]; then
   qi=${q%%.*}
   if [ "${qi:-0}" -ge 80 ] 2>/dev/null; then
@@ -121,11 +121,12 @@ if [ -n "$q" ]; then
     quota_clr="\033[33m"
   fi
   quota_val=$(printf '%.0f%% used' "$q")
-elif [ -n "$cost_val" ]; then
-  quota_hdr="cost"
-  quota_val=$(printf '$%.4f' "$cost_val")
-  quota_clr="\033[36m"
 fi
+
+# ── Cost — estimated session cost (all backends) ─────────────────────
+
+cost_disp=""
+[ -n "$cost_val" ] && cost_disp=$(printf '$%.4f' "$cost_val")
 
 # ── Process memory (walk up to find Claude Code's node process) ──────
 
@@ -156,13 +157,14 @@ col() {
   val+="${c}$(pad "$v" "$w")${RST}${SEP}"
 }
 
-[ -n "$vim_mode" ] && col "mode" "[${vim_mode}]" "\033[1;35m"
+[ -n "$vim_mode" ] && col "mode" "[${vim_mode:0:3}]" "\033[1;35m"
 col "workspace" "$short_cwd" "${BOLD}\033[34m"
 [ -n "$git_val" ]   && col "branch"     "$git_val"     "\033[33m"
                        col "profile"    "$profile_val" "$profile_clr"
 [ -n "$model_val" ] && col "model"      "$model_val"   "\033[32m"
 [ -n "$ctx_val" ]   && col "context"    "$ctx_val"     "$ctx_clr"
-[ -n "$quota_val" ] && col "$quota_hdr" "$quota_val"   "$quota_clr"
+[ -n "$quota_val" ] && col "quota"      "$quota_val"   "$quota_clr"
+[ -n "$cost_disp" ] && col "cost"       "$cost_disp"   "\033[36m"
 [ -n "$mem_val" ]   && col "memory"     "$mem_val"     "\033[36m"
 
 printf '%b\n%b' "$hdr" "$val"
