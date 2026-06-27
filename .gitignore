@@ -6,6 +6,10 @@
 *.swp
 *~
 
+# Python
+__pycache__/
+*.pyc
+
 # Editor directories
 .vscode/
 .idea/

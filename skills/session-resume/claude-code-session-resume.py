@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Smart session resume for Claude Code.
 
-Shows enriched session history (multiple prompts, git commits, files touched)
-and lets you pick a session to resume.
+Shows enriched session history and lets you pick a session to resume. For each
+session it surfaces:
+  - the session's title (the AI-generated or user-renamed name shown in /resume)
+  - an "arc" of prompts (first, second-to-last, last) so you recognize the work
+  - every git commit made during the session (sha + summary)
+  - files edited (in --verbose mode)
 """
 
 import argparse
@@ -100,12 +104,16 @@ def _entry_from_jsonl(jsonl_path: Path, session_id: str) -> dict | None:
     first_user = None
     last_timestamp = None
     msg_count = 0
+    title = ""
 
     with open(jsonl_path) as f:
         for line in f:
             try:
                 obj = json.loads(line)
             except json.JSONDecodeError:
+                continue
+            if obj.get("type") == "ai-title":
+                title = obj.get("aiTitle") or title
                 continue
             if obj.get("type") in ("user", "assistant"):
                 msg_count += 1
@@ -134,6 +142,7 @@ def _entry_from_jsonl(jsonl_path: Path, session_id: str) -> dict | None:
         "sessionId": session_id,
         "fullPath": str(jsonl_path),
         "firstPrompt": first_prompt or "No prompt",
+        "title": title,
         "summary": "",
         "messageCount": msg_count,
         "created": created,
@@ -144,24 +153,113 @@ def _entry_from_jsonl(jsonl_path: Path, session_id: str) -> dict | None:
     }
 
 
+# Detecting commits takes two signals working together:
+#
+#   1. A Bash tool call that actually *invokes* `git commit`. We can't just
+#      test startswith("git commit") — most commits are compound, e.g.
+#      "git add -A && git commit ...". So we split the command on shell
+#      operators and check whether any segment runs `git ... commit` as its
+#      subcommand (after skipping global options like "-C path"). This also
+#      rejects commands that merely *mention* "git commit" in a string, an
+#      echo, or a Python snippet.
+#
+#   2. That call's *result* containing git's success line, which git prints as
+#      "[<branch...> <sha>] <summary>" — e.g. "[main 1a2b3c4] fix: thing" or
+#      "[detached HEAD 1a2b3c4] msg". The result gives us the real SHA and the
+#      committed summary, regardless of how the message was passed in.
+#
+# Requiring both avoids false positives from sessions that print commit-like
+# text (git log/show output, history audits) without making a commit, while
+# still catching every genuine commit.
+_COMMIT_RESULT_RE = re.compile(r"^\s*\[([^\]]+)\]\s+(.+)$", re.MULTILINE)
+_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
+_SEG_SPLIT_RE = re.compile(r"&&|\|\||[;|\n]")
+_ENV_PREFIX_RE = re.compile(r"^\w+=\S*\s+")
+# git global options that consume the following token as their argument.
+_GIT_OPTS_WITH_ARG = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+
+
+def _is_git_commit_segment(seg: str) -> bool:
+    """True if a single shell segment runs `git commit` as its subcommand."""
+    seg = seg.strip()
+    while _ENV_PREFIX_RE.match(seg):  # strip leading FOO=bar assignments
+        seg = _ENV_PREFIX_RE.sub("", seg, count=1)
+    if not re.match(r"^git\b", seg):
+        return False
+    tokens = seg.split()[1:]  # everything after "git"
+    i = 0
+    while i < len(tokens) and tokens[i].startswith("-"):
+        i += 2 if tokens[i] in _GIT_OPTS_WITH_ARG else 1
+    return i < len(tokens) and tokens[i] == "commit"
+
+
+def _command_makes_commit(cmd: str) -> bool:
+    """True if any segment of a (possibly compound) command invokes git commit."""
+    return any(_is_git_commit_segment(s) for s in _SEG_SPLIT_RE.split(cmd))
+
+
+def _tool_result_text(block: dict) -> str:
+    """Extract the text payload from a tool_result content block."""
+    res = block.get("content", "")
+    if isinstance(res, list):
+        for r in res:
+            if isinstance(r, dict) and r.get("type") == "text":
+                return r.get("text", "")
+        return ""
+    return res if isinstance(res, str) else ""
+
+
+def _commits_from_result(text: str) -> list[tuple]:
+    """Pull (sha, summary) pairs out of git's commit-success output."""
+    commits = []
+    for m in _COMMIT_RESULT_RE.finditer(text):
+        bracket, summary = m.group(1), m.group(2).strip()
+        tokens = bracket.split()
+        # The bracket must end in a short SHA (e.g. "main 1a2b3c4"). This
+        # rejects non-commit lines like "[INFO] ..." or "[main] up to date".
+        if not summary or not tokens or not _SHA_RE.match(tokens[-1]):
+            continue
+        commits.append((tokens[-1][:9], summary))
+    return commits
+
+
+def _dedupe_commits(commits: list[tuple]) -> list[tuple]:
+    """Collapse commits that share a summary (e.g. the soft-reset + recommit
+    amend workflow), keeping the latest SHA where the summary first appeared."""
+    seen = {}  # summary -> index in result
+    result = []
+    for sha, summary in commits:
+        if summary in seen:
+            result[seen[summary]] = (sha, summary)
+        else:
+            seen[summary] = len(result)
+            result.append((sha, summary))
+    return result
+
+
 def parse_session_jsonl(jsonl_path: str) -> dict:
-    """Parse a session JSONL file to extract prompts, git commands, and files."""
+    """Parse a session JSONL file to extract title, prompts, commits, and files."""
     path = Path(jsonl_path)
     if not path.exists():
         return {}
 
+    title = ""
     user_prompts = []  # list of (serial_number, text)
     prompt_num = 0
-    git_commits = []  # list of (sha, message)
+    git_commits = []  # list of (sha, message) in order seen
     files_edited = set()
-    # Track pending git commit tool calls to match with their results
-    pending_commits = {}  # tool_use_id -> commit_message
+    commit_tool_ids = set()  # tool_use ids of real `git commit` invocations
 
     with open(path) as f:
         for line in f:
             try:
                 obj = json.loads(line)
             except json.JSONDecodeError:
+                continue
+
+            # Session title (AI-generated or user-renamed) — keep the latest.
+            if obj.get("type") == "ai-title":
+                title = obj.get("aiTitle") or title
                 continue
 
             msg = obj.get("message", {})
@@ -187,66 +285,32 @@ def parse_session_jsonl(jsonl_path: str) -> dict:
                         prompt_num += 1
                         user_prompts.append((prompt_num, text))
 
-            # Extract tool calls from assistant messages
+            # Track git-commit invocations and edited files (tool_use), then
+            # read the SHA + summary from the matching result (tool_result).
             if isinstance(content, list):
                 for c in content:
                     if not isinstance(c, dict):
                         continue
-
-                    # Match tool results to pending git commits
-                    if c.get("type") == "tool_result" and c.get("tool_use_id") in pending_commits:
-                        tool_id = c["tool_use_id"]
-                        commit_msg = pending_commits.pop(tool_id)
-                        result = c.get("content", "")
-                        if isinstance(result, list):
-                            for r in result:
-                                if isinstance(r, dict) and r.get("type") == "text":
-                                    result = r["text"]
-                                    break
-                            else:
-                                result = ""
-                        # Extract SHA from result: [branch SHA] message
-                        sha_match = re.search(r"\[[\w/-]+\s+([0-9a-f]{7,})\]", str(result))
-                        sha = sha_match.group(1)[:7] if sha_match else ""
-                        git_commits.append((sha, commit_msg))
-                        continue
-
-                    if c.get("type") != "tool_use":
-                        continue
-                    name = c.get("name", "")
-                    inp = c.get("input", {})
-
-                    if name == "Bash":
-                        cmd = inp.get("command", "")
-                        # Only match actual git commit commands, not scripts
-                        # that mention "git commit"
-                        if cmd.startswith("git commit"):
-                            # HEREDOC: git commit -m "$(cat <<'EOF'\nSummary line
-                            m = re.search(
-                                r"""cat\s*<<\s*'?EOF'?\s*\n(.+?)(?:\n|$)""", cmd
-                            )
-                            if m:
-                                commit_msg = m.group(1).strip()[:80]
-                            else:
-                                # Simple: git commit -m "message"
-                                m = re.search(
-                                    r"""-m\s+["'](.+?)["']""", cmd
-                                )
-                                commit_msg = m.group(1)[:80] if m else "(commit)"
-                            pending_commits[c.get("id", "")] = commit_msg
-
-                    elif name in ("Write", "Edit"):
-                        fp = inp.get("file_path", "")
-                        if fp:
-                            files_edited.add(fp)
-
-    # Any pending commits without results (e.g., failed or still running)
-    for tool_id, commit_msg in pending_commits.items():
-        git_commits.append(("", commit_msg))
+                    ctype = c.get("type")
+                    if ctype == "tool_use":
+                        name = c.get("name")
+                        if name == "Bash" and _command_makes_commit(
+                            c.get("input", {}).get("command", "")
+                        ):
+                            commit_tool_ids.add(c.get("id"))
+                        elif name in ("Write", "Edit"):
+                            fp = c.get("input", {}).get("file_path", "")
+                            if fp:
+                                files_edited.add(fp)
+                    elif ctype == "tool_result" and c.get("tool_use_id") in commit_tool_ids:
+                        git_commits.extend(
+                            _commits_from_result(_tool_result_text(c))
+                        )
 
     return {
+        "title": title,
         "user_prompts": user_prompts,
-        "git_commits": git_commits,
+        "git_commits": _dedupe_commits(git_commits),
         "files_edited": sorted(files_edited),
     }
 
@@ -314,10 +378,59 @@ def shorten_path(path: str) -> str:
     return path
 
 
-def project_path_from_key(key: str) -> str:
-    """Convert a project directory key back to a path."""
-    # Keys look like -home-areis-projects-foo, meaning /home/areis/projects/foo
-    return key.replace("-", "/", 1).replace("-", "/")
+def decode_project_key(key: str) -> str:
+    """Best-effort decode of a Claude project-dir key back to a real path.
+
+    The encoding (every "/" in the cwd becomes "-") is lossy: a "-" in the key
+    may be a path separator or a literal character in a directory name (e.g.
+    "claude-code-extensions"). We resolve the ambiguity by walking the
+    filesystem, splitting on "-" only where the resulting directory actually
+    exists, and preferring the shortest component that does. If the path no
+    longer exists on disk we can't know, so we fall back to treating every
+    "-" as "/".
+    """
+    if not key.startswith("-"):
+        return key
+    naive = "/" + key[1:].replace("-", "/")
+    segs = key[1:].split("-")
+    path = Path("/")
+    i = 0
+    while i < len(segs):
+        comp = segs[i]
+        j = i
+        # Grow the component with "-" until it names a real directory.
+        while not (path / comp).exists() and j + 1 < len(segs):
+            j += 1
+            comp = f"{comp}-{segs[j]}"
+        if not (path / comp).exists():
+            return naive  # unresolvable from here — best-effort decode
+        path = path / comp
+        i = j + 1
+    return str(path)
+
+
+# --- Color handling -------------------------------------------------------
+# ANSI styling is emitted only when enabled (a terminal, by default), so
+# piping into `less`, redirecting to a file, or capturing output in the
+# /session-resume skill yields clean, plain text. Honors the NO_COLOR
+# convention (https://no-color.org) and the --color flag.
+_COLOR_ENABLED = False  # finalized in main() from --color + tty state
+
+
+def _resolve_color(mode: str) -> bool:
+    if mode == "always":
+        return True
+    if mode == "never":
+        return False
+    return sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+
+
+def c(code: str, text) -> str:
+    """Wrap text in an ANSI SGR sequence when color is on, else return plain."""
+    text = str(text)
+    if not _COLOR_ENABLED:
+        return text
+    return f"\033[{code}m{text}\033[0m"
 
 
 def display_session(idx: int, entry: dict, parsed: dict | None, verbose: bool):
@@ -326,17 +439,19 @@ def display_session(idx: int, entry: dict, parsed: dict | None, verbose: bool):
     age = format_age(entry.get("modified", entry.get("created", "")))
     duration = format_duration(entry.get("created", ""), entry.get("modified", ""))
     branch = entry.get("gitBranch", "")
-    summary = entry.get("summary", "")
+    # Session title (AI-generated or user-renamed). Prefer the freshly parsed
+    # value; fall back to the listing entry, then the legacy index "summary".
+    title = (parsed or {}).get("title") or entry.get("title") or entry.get("summary", "")
     msg_count = entry.get("messageCount", 0)
     project = entry.get("projectPath", "")
 
     # Header line
     branch_str = f"  [{branch}]" if branch else ""
-    print(f"  \033[1;33m{idx}\033[0m  {age}, {duration}, {msg_count} msgs{branch_str}  {sid}")
+    print(f"  {c('1;33', idx)}  {age}, {duration}, {msg_count} msgs{branch_str}  {sid}")
 
-    # Summary
-    if summary:
-        print(f"     \033[1m{truncate(summary, 90)}\033[0m")
+    # Title
+    if title:
+        print(f"     {c('1', truncate(title, 90))}")
 
     # Prompts: show arc (first, second-to-last, last) with serial numbers
     if parsed and parsed.get("user_prompts"):
@@ -344,23 +459,18 @@ def display_session(idx: int, entry: dict, parsed: dict | None, verbose: bool):
         selected = _select_arc_prompts(prompts)
         for num, text in selected:
             label = f"#{num:<3d}"
-            print(f"     \033[2m{label} {truncate(text, 81)}\033[0m")
+            print(f"     {c('2', label + ' ' + truncate(text, 81))}")
     else:
         # Fall back to firstPrompt from index
         first = entry.get("firstPrompt", "")
         if first and first != "No prompt":
-            print(f"     \033[2m> {truncate(first, 85)}\033[0m")
+            print(f"     {c('2', '> ' + truncate(first, 85))}")
 
-    # Git commits
+    # Git commits — show every commit made during the session.
     if parsed and parsed.get("git_commits"):
-        commits = parsed["git_commits"]
-        limit = len(commits) if verbose else 3
-        for sha, msg in commits[:limit]:
+        for sha, msg in parsed["git_commits"]:
             sha_str = f"{sha} " if sha else ""
-            print(f"     \033[32m{sha_str}{truncate(msg, 85 - len(sha_str))}\033[0m")
-        remaining = len(commits) - limit
-        if remaining > 0:
-            print(f"     \033[32m  ...and {remaining} more commit(s)\033[0m")
+            print(f"     {c('32', '* ' + sha_str + truncate(msg, 83 - len(sha_str)))}")
 
     # Files (verbose only)
     if verbose and parsed and parsed.get("files_edited"):
@@ -373,10 +483,10 @@ def display_session(idx: int, entry: dict, parsed: dict | None, verbose: bool):
                 fp = fp[len(project) :].lstrip("/")
             else:
                 fp = shorten_path(fp)
-            print(f"     \033[36m\u270e {fp}\033[0m")
+            print(f"     {c('36', '~ ' + fp)}")
         remaining = len(files) - limit
         if remaining > 0:
-            print(f"     \033[36m  ...and {remaining} more file(s)\033[0m")
+            print(f"     {c('36', f'  ...and {remaining} more file(s)')}")
 
     print()
 
@@ -426,7 +536,18 @@ def main():
         action="store_true",
         help="Non-interactive output with session IDs (for /session-resume skill)",
     )
+    parser.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="When to colorize output (default: auto — only on a terminal)",
+    )
     args = parser.parse_args()
+
+    # Colorize only on a terminal by default, so `| less` and redirects stay
+    # clean. Skill mode is always plain — its output is parsed, not displayed.
+    global _COLOR_ENABLED
+    _COLOR_ENABLED = _resolve_color("never" if args.skill else args.color)
 
     # Determine which project(s) to show
     if args.all:
@@ -476,20 +597,24 @@ def main():
 
     # Show header
     if args.all:
-        print(f"\n\033[1mClaude Code Sessions (all projects, showing {len(sessions)})\033[0m\n")
+        print(f"\n{c('1', f'Claude Code Sessions (all projects, showing {len(sessions)})')}\n")
     else:
         target = args.project or os.getcwd()
-        print(f"\n\033[1mClaude Code Sessions for {shorten_path(target)} (showing {len(sessions)})\033[0m\n")
+        print(f"\n{c('1', f'Claude Code Sessions for {shorten_path(target)} (showing {len(sessions)})')}\n")
 
     # Parse JSONL files where available, display sessions
     current_project = None
     for i, entry in enumerate(sessions, 1):
-        # Show project header if --all and project changed
+        # Show project header if --all and project changed. Prefer the session's
+        # recorded cwd (already a real path); fall back to decoding the project
+        # directory key only when cwd is unavailable.
         if args.all:
-            proj = entry.get("projectPath", "unknown")
+            proj = entry.get("projectPath") or decode_project_key(
+                Path(entry["_project_dir"]).name
+            )
             if proj != current_project:
                 current_project = proj
-                print(f"  \033[1;35m--- {shorten_path(proj)} ---\033[0m\n")
+                print(f"  {c('1;35', f'--- {shorten_path(proj)} ---')}\n")
 
         # Try to parse JSONL — fullPath in the index may be stale,
         # so also check for the file by session ID in the project dir
@@ -507,7 +632,7 @@ def main():
 
     # Selection — Enter defaults to the last (most recent) session
     default = len(sessions)
-    print(f"\033[1mSelect session to resume [{default}] (q to quit):\033[0m ", end="")
+    print(f"{c('1', f'Select session to resume [{default}] (q to quit):')} ", end="")
     try:
         choice = input().strip()
     except (EOFError, KeyboardInterrupt):
@@ -537,11 +662,11 @@ def main():
     # Handle stale project path (e.g., directory was renamed)
     if project_path and not os.path.isdir(project_path):
         print(
-            f"\n  \033[33mNote: recorded project path no longer exists: {shorten_path(project_path)}\033[0m",
+            f"\n  {c('33', f'Note: recorded project path no longer exists: {shorten_path(project_path)}')}",
             file=sys.stderr,
         )
         print(
-            f"  \033[33mResuming from current directory instead: {shorten_path(os.getcwd())}\033[0m",
+            f"  {c('33', f'Resuming from current directory instead: {shorten_path(os.getcwd())}')}",
             file=sys.stderr,
         )
         project_path = os.getcwd()
@@ -554,7 +679,7 @@ def main():
     else:
         print(f"\n  {cmd}\n")
 
-    print("\033[1mRun this command? [Y/n]\033[0m ", end="")
+    print(f"{c('1', 'Run this command? [Y/n]')} ", end="")
     try:
         confirm = input().strip()
     except (EOFError, KeyboardInterrupt):

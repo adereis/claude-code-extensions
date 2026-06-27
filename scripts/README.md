@@ -2,9 +2,24 @@
 
 Standalone tools that extend Claude Code. Copy individual scripts to `~/.claude/scripts/` or run them directly from this directory.
 
-## session-resume.py
+## claude-code-session-resume.py
 
-Smart session resume with enriched history. See the [session-resume skill](../skills/session-resume/) for usage details.
+Smart session resume with enriched history. For each recent session it shows the
+session title (the AI-generated or renamed name from `/resume`), an arc of
+prompts, and every git commit made during the session; `-v` adds edited files.
+
+Colors are emitted only on a terminal, so `| less` and file redirects stay
+clean (override with `--color always|never`, or honor `NO_COLOR`).
+
+```bash
+# Sessions for the current project, newest last
+python3 scripts/claude-code-session-resume.py
+
+# All projects, more entries, with edited files
+python3 scripts/claude-code-session-resume.py --all -n 20 -v
+```
+
+See the [session-resume skill](../skills/session-resume/) for the `/session-resume` entry point.
 
 ## claude-memory — Memory Portability
 
