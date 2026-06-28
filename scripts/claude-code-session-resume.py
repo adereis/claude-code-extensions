@@ -153,24 +153,31 @@ def _entry_from_jsonl(jsonl_path: Path, session_id: str) -> dict | None:
     }
 
 
-# Detecting commits takes two signals working together:
+# A Bash tool call that actually *invokes* `git commit` is the authoritative
+# signal that a commit happened. We can't just test startswith("git commit") —
+# most commits are compound, e.g. "git add -A && git commit ...". So we split
+# the command on shell operators and check whether any segment runs
+# `git ... commit` as its subcommand (after skipping global options like
+# "-C path"). This also rejects commands that merely *mention* "git commit" in
+# a string, an echo, or a Python snippet — so history audits that print
+# commit-like text without committing produce nothing.
 #
-#   1. A Bash tool call that actually *invokes* `git commit`. We can't just
-#      test startswith("git commit") — most commits are compound, e.g.
-#      "git add -A && git commit ...". So we split the command on shell
-#      operators and check whether any segment runs `git ... commit` as its
-#      subcommand (after skipping global options like "-C path"). This also
-#      rejects commands that merely *mention* "git commit" in a string, an
-#      echo, or a Python snippet.
+# Given a confirmed commit invocation, we recover the (sha, summary) to show in
+# two layers:
 #
-#   2. That call's *result* containing git's success line, which git prints as
-#      "[<branch...> <sha>] <summary>" — e.g. "[main 1a2b3c4] fix: thing" or
-#      "[detached HEAD 1a2b3c4] msg". The result gives us the real SHA and the
-#      committed summary, regardless of how the message was passed in.
+#   1. Preferred — git's own success line in the *result*, printed as
+#      "[<branch...> <sha>] <summary>" (e.g. "[main 1a2b3c4] fix: thing" or
+#      "[detached HEAD 1a2b3c4] msg"). This gives the real SHA and the committed
+#      summary regardless of how the message was passed in.
 #
-# Requiring both avoids false positives from sessions that print commit-like
-# text (git log/show output, history audits) without making a commit, while
-# still catching every genuine commit.
+#   2. Fallback for `git commit -q` — quiet mode SUPPRESSES that success line,
+#      so layer 1 finds nothing. We then take the summary from the command's
+#      own message (a `-F -` heredoc body or an inline -m), and best-effort the
+#      SHA from any "<sha> <summary>" the script echoed back itself (e.g. via
+#      `git log -1 --format='%h %s'`). Anchoring the SHA search on the exact
+#      summary avoids picking up unrelated commits from an embedded git log.
+#      A quiet commit that *failed* prints an error and echoes no SHA, so we
+#      drop it (is_error and no recovered SHA) rather than show a phantom.
 _COMMIT_RESULT_RE = re.compile(r"^\s*\[([^\]]+)\]\s+(.+)$", re.MULTILINE)
 _SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 _SEG_SPLIT_RE = re.compile(r"&&|\|\||[;|\n]")
@@ -223,6 +230,51 @@ def _commits_from_result(text: str) -> list[tuple]:
     return commits
 
 
+# A heredoc redirect: `<<EOF`, `<<-EOF`, `<<'EOF'`, `<<"EOF"`. Group 2 is the
+# delimiter word we scan for to close the body.
+_HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+# An inline commit message: -m / --message, value either quoted or bare.
+_MSG_OPT_RE = re.compile(
+    r"""(?:^|\s)(?:-m|--message)(?:=|\s+)('([^']*)'|"([^"]*)"|(\S+))"""
+)
+
+
+def _commit_message_from_command(cmd: str) -> str:
+    """Recover a commit's summary line from the command text itself.
+
+    Used when `git commit -q` suppressed git's success line. Handles the two
+    ways automation passes a message without relying on git echoing it back:
+    a `-F -` heredoc (summary = first non-blank body line) or an inline
+    -m/--message. Returns "" if neither is present (e.g. bare --amend).
+    """
+    m = _HEREDOC_RE.search(cmd)
+    if m:
+        delim = m.group(2)
+        capturing = False
+        for line in cmd.split("\n"):
+            if not capturing:
+                if _HEREDOC_RE.search(line):
+                    capturing = True  # opener seen; body starts next line
+                continue
+            if line.strip() == delim:
+                break  # heredoc terminator
+            if line.strip():
+                return line.strip()
+    m = _MSG_OPT_RE.search(cmd)
+    if m:
+        return (m.group(2) or m.group(3) or m.group(4) or "").strip()
+    return ""
+
+
+def _sha_for_summary(text: str, summary: str) -> str:
+    """Best-effort SHA for a quiet commit: a short hash printed immediately
+    before this exact summary (e.g. a `git log -1 --format='%h %s'` echo).
+    Anchored on the summary so an embedded git log of older commits can't
+    supply the wrong hash. Returns "" if none is found."""
+    m = re.search(r"\b([0-9a-f]{7,40})\b[ \t]+" + re.escape(summary), text)
+    return m.group(1)[:9] if m else ""
+
+
 def _dedupe_commits(commits: list[tuple]) -> list[tuple]:
     """Collapse commits that share a summary (e.g. the soft-reset + recommit
     amend workflow), keeping the latest SHA where the summary first appeared."""
@@ -248,7 +300,7 @@ def parse_session_jsonl(jsonl_path: str) -> dict:
     prompt_num = 0
     git_commits = []  # list of (sha, message) in order seen
     files_edited = set()
-    commit_tool_ids = set()  # tool_use ids of real `git commit` invocations
+    commit_cmds = {}  # tool_use id -> command text, for real `git commit` calls
 
     with open(path) as f:
         for line in f:
@@ -294,18 +346,31 @@ def parse_session_jsonl(jsonl_path: str) -> dict:
                     ctype = c.get("type")
                     if ctype == "tool_use":
                         name = c.get("name")
-                        if name == "Bash" and _command_makes_commit(
-                            c.get("input", {}).get("command", "")
-                        ):
-                            commit_tool_ids.add(c.get("id"))
+                        if name == "Bash":
+                            cmd = c.get("input", {}).get("command", "")
+                            if _command_makes_commit(cmd):
+                                commit_cmds[c.get("id")] = cmd
                         elif name in ("Write", "Edit"):
                             fp = c.get("input", {}).get("file_path", "")
                             if fp:
                                 files_edited.add(fp)
-                    elif ctype == "tool_result" and c.get("tool_use_id") in commit_tool_ids:
-                        git_commits.extend(
-                            _commits_from_result(_tool_result_text(c))
-                        )
+                    elif ctype == "tool_result" and c.get("tool_use_id") in commit_cmds:
+                        text = _tool_result_text(c)
+                        found = _commits_from_result(text)
+                        if found:
+                            git_commits.extend(found)
+                        else:
+                            # `git commit -q` printed no success line; recover
+                            # the summary from the command and the SHA from any
+                            # hash the script echoed. Drop a failed quiet commit
+                            # (error result with no echoed SHA) as a phantom.
+                            summary = _commit_message_from_command(
+                                commit_cmds[c.get("tool_use_id")]
+                            )
+                            if summary:
+                                sha = _sha_for_summary(text, summary)
+                                if sha or not c.get("is_error"):
+                                    git_commits.append((sha, summary))
 
     return {
         "title": title,

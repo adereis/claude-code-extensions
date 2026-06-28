@@ -49,6 +49,29 @@ print("res_root=" + one("[main (root-commit) abcdef0] init"))
 print("res_info=" + one("[INFO] not a commit line"))
 print("res_branchonly=" + one("[main] already up to date"))
 
+# --- quiet-commit message recovery from the command itself ---
+heredoc_cmd = (
+    "git add -A\n"
+    "git commit -q -F - <<'EOF'\n"
+    "feat: quiet heredoc commit\n\n"
+    "Body line that must not be picked as the summary.\n"
+    "EOF\n"
+    'echo "done: $(git log -1 --format=%h)"'
+)
+print("msg_heredoc=" + m._commit_message_from_command(heredoc_cmd))
+print("msg_dashm=" + m._commit_message_from_command('git commit -q -m "fix: inline message"'))
+print("msg_longopt=" + m._commit_message_from_command("git commit -q --message='use long opt'"))
+print("msg_none=" + (m._commit_message_from_command("git commit -q --amend --no-edit") or "EMPTY"))
+
+# --- anchored SHA recovery: pick the hash next to THIS summary, not a log's ---
+echoed = ("commit done: 9abcdef feat: quiet heredoc commit\n"
+          "=== log (top 2) ===\n"
+          "9abcdef feat: quiet heredoc commit\n"
+          "1111111 some older unrelated commit")
+print("sha_anchored=" + (m._sha_for_summary(echoed, "feat: quiet heredoc commit") or "EMPTY"))
+print("sha_wrongsummary=" + (m._sha_for_summary(echoed, "some older unrelated commit") or "EMPTY"))
+print("sha_missing=" + (m._sha_for_summary("no hash here for feat: x", "feat: x") or "EMPTY"))
+
 # --- end-to-end: title + commit gated on a real invocation, phantom rejected ---
 recs = [
     {"type": "ai-title", "aiTitle": "My Session Title"},
@@ -80,6 +103,49 @@ print("ncommits=" + str(len(parsed["git_commits"])))
 print("commit0=" + (f"{parsed['git_commits'][0][0]}:{parsed['git_commits'][0][1]}"
                     if parsed["git_commits"] else "NONE"))
 print("phantom=" + b(any(sha == "deadbee" for sha, _ in parsed["git_commits"])))
+
+# --- end-to-end: quiet (`-q`) commits that print no "[branch sha]" line ---
+# Mirrors the real session that exposed the bug: heredoc message + a wrapper
+# that echoes the SHA itself, plus a soft-reset/redo whose final SHA must win,
+# and a failed quiet commit that must be dropped as a phantom.
+def qc(tid, cmd, result, is_error=False):
+    return [
+        {"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "id": tid, "name": "Bash", "input": {"command": cmd}}]}},
+        {"type": "user", "message": {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": tid, "is_error": is_error,
+             "content": [{"type": "text", "text": result}]}]}},
+    ]
+
+qrecs = []
+# Quiet commit, message via heredoc, SHA echoed back by the script.
+qrecs += qc("Q1",
+    "git add -A\ngit commit -q -F - <<'EOF'\nfeat: alpha\n\nbody\nEOF\n"
+    'echo "done: $(git log -1 --format=%h)"',
+    "done: aaaaaaa\naaaaaaa feat: alpha")
+# Quiet commit via -m, success, NO echoed SHA -> summary shown without a SHA.
+qrecs += qc("Q2", 'git commit -q -m "feat: beta"', "")
+# Soft-reset then redo the same summary, new SHA -> dedup keeps the final SHA.
+qrecs += qc("Q3",
+    "git reset --soft HEAD~1\ngit commit -q -F - <<'EOF'\nfeat: alpha\nEOF\n"
+    'echo "redo: $(git log -1 --format=%h)"',
+    "redo: ccccccc\nccccccc feat: alpha")
+# Failed quiet commit: error result, no echoed SHA -> dropped (no phantom).
+qrecs += qc("Q4", 'git commit -q -m "feat: never happened"',
+    "nothing to commit, working tree clean", is_error=True)
+
+fd, fp = tempfile.mkstemp(suffix=".jsonl")
+with os.fdopen(fd, "w") as f:
+    for r in qrecs:
+        f.write(json.dumps(r) + "\n")
+qp = m.parse_session_jsonl(fp)
+os.unlink(fp)
+qcommits = qp["git_commits"]
+print("q_ncommits=" + str(len(qcommits)))
+print("q_alpha_sha=" + next((sha for sha, s in qcommits if s == "feat: alpha"), "NONE"))
+print("q_beta=" + next((f"{sha or 'NOSHA'}:{s}" for sha, s in qcommits if s == "feat: beta"), "NONE"))
+print("q_failed_dropped=" + b(not any(s == "feat: never happened" for _, s in qcommits)))
+print("q_body_not_summary=" + b(not any(s == "body" for _, s in qcommits)))
 PY
 )
 
@@ -108,5 +174,24 @@ assert_output_contains "title=My Session Title"
 assert_output_contains "ncommits=1"
 assert_output_contains "commit0=abc1234:feat: x"
 assert_output_contains "phantom=False"
+
+# Quiet-commit message recovery (unit): heredoc/-m/long-opt, none for bare amend.
+assert_output_contains "msg_heredoc=feat: quiet heredoc commit"
+assert_output_contains "msg_dashm=fix: inline message"
+assert_output_contains "msg_longopt=use long opt"
+assert_output_contains "msg_none=EMPTY"
+
+# Anchored SHA recovery (unit): right hash for the summary, none when missing.
+assert_output_contains "sha_anchored=9abcdef"
+assert_output_contains "sha_wrongsummary=1111111"
+assert_output_contains "sha_missing=EMPTY"
+
+# Quiet commits end-to-end: alpha (soft-reset redo wins final SHA), beta has no
+# echoed SHA, failed commit dropped, heredoc body never mistaken for a summary.
+assert_output_contains "q_ncommits=2"
+assert_output_contains "q_alpha_sha=ccccccc"
+assert_output_contains "q_beta=NOSHA:feat: beta"
+assert_output_contains "q_failed_dropped=True"
+assert_output_contains "q_body_not_summary=True"
 
 test_summary "session-resume"
