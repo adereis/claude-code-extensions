@@ -19,7 +19,11 @@ python3 scripts/claude-code-session-resume.py
 python3 scripts/claude-code-session-resume.py --all -n 20 -v
 ```
 
-See the [session-resume skill](../skills/session-resume/) for the `/session-resume` entry point.
+To run it from anywhere, symlink it onto your `PATH`:
+
+```bash
+ln -s "$PWD/scripts/claude-code-session-resume.py" ~/bin/
+```
 
 ## claude-memory — Memory Portability
 
