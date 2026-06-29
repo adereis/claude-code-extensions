@@ -476,9 +476,8 @@ def decode_project_key(key: str) -> str:
 
 # --- Color handling -------------------------------------------------------
 # ANSI styling is emitted only when enabled (a terminal, by default), so
-# piping into `less`, redirecting to a file, or capturing output in the
-# /session-resume skill yields clean, plain text. Honors the NO_COLOR
-# convention (https://no-color.org) and the --color flag.
+# piping into `less` or redirecting to a file yields clean, plain text.
+# Honors the NO_COLOR convention (https://no-color.org) and the --color flag.
 _COLOR_ENABLED = False  # finalized in main() from --color + tty state
 
 
@@ -597,9 +596,9 @@ def main():
     )
     parser.add_argument(
         "-l",
-        "--skill",
+        "--list",
         action="store_true",
-        help="Non-interactive output with session IDs (for /session-resume skill)",
+        help="List sessions and exit, without the interactive resume prompt",
     )
     parser.add_argument(
         "--color",
@@ -609,10 +608,9 @@ def main():
     )
     args = parser.parse_args()
 
-    # Colorize only on a terminal by default, so `| less` and redirects stay
-    # clean. Skill mode is always plain — its output is parsed, not displayed.
+    # Colorize only on a terminal by default, so `| less` and redirects stay clean.
     global _COLOR_ENABLED
-    _COLOR_ENABLED = _resolve_color("never" if args.skill else args.color)
+    _COLOR_ENABLED = _resolve_color(args.color)
 
     # Determine which project(s) to show
     if args.all:
@@ -692,7 +690,7 @@ def main():
 
         display_session(i, entry, parsed, args.verbose)
 
-    if args.skill:
+    if args.list:
         sys.exit(0)
 
     # Selection — Enter defaults to the last (most recent) session

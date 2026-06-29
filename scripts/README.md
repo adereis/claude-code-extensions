@@ -8,15 +8,25 @@ Smart session resume with enriched history. For each recent session it shows the
 session title (the AI-generated or renamed name from `/resume`), an arc of
 prompts, and every git commit made during the session; `-v` adds edited files.
 
+**Run it from a shell, not from inside Claude Code.** When you pick a session it
+`exec`s `claude --resume <id>` in place, so it must be your terminal's foreground
+process — that can't work as a slash command from within a running session
+(and Claude Code's built-in `/resume` already covers the in-session case). A
+shell alias is the natural home, e.g. `alias ccr='python3 ~/.claude/scripts/claude-code-session-resume.py'`.
+
 Colors are emitted only on a terminal, so `| less` and file redirects stay
-clean (override with `--color always|never`, or honor `NO_COLOR`).
+clean (override with `--color always|never`, or honor `NO_COLOR`). Use `--list`
+to print the history and exit without the interactive resume prompt.
 
 ```bash
-# Sessions for the current project, newest last
+# Sessions for the current project, newest last (interactive)
 python3 scripts/claude-code-session-resume.py
 
 # All projects, more entries, with edited files
 python3 scripts/claude-code-session-resume.py --all -n 20 -v
+
+# Just view, no prompt (pipe-friendly)
+python3 scripts/claude-code-session-resume.py --list --all | less
 ```
 
 To run it from anywhere, symlink it onto your `PATH`:
